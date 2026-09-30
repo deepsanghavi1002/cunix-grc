@@ -14,7 +14,7 @@ A Cunix administrator or reviewer selects a control, records a review note and a
 
 ## Implemented modules
 
-Scope, controls, document intake and human review, risk register, vendor register, asset register, policy register, remediation tasks, training records, integration inventory, user access, activity history and audit register export. These modules persist real data and enforce membership checks on every workspace route.
+Scope, controls, document intake and human review, inherent/residual risk scoring, vendor and asset registers, versioned policy acknowledgements, remediation tasks, training records, integration inventory, user access, revision history, readiness monitoring and audit engagements with evidence requests. See [the current feature checklist](FEATURES.md) for behavior, limitations and demonstration steps. These modules persist data and enforce membership checks on workspace routes.
 
 ## Deployment
 
@@ -24,6 +24,6 @@ CI executes the workspace-isolation and document-approval integration test, fron
 
 ## Current limits
 
-This release is a functional service foundation rather than Sprinto feature parity. Cloud-provider connectors, scheduled automated control tests, OCR, AI analysis, SSO/MFA, email invitations, password recovery, policy acknowledgements, training delivery, risk calculations, full Statement of Applicability workflows and certification/auditor systems are not implemented. Integration inventory always shows not connected. Starter controls are not a complete ISO implementation. The JSON export is an evidence register, not a certification decision.
+This release is a functional service foundation rather than Sprinto feature parity. Cloud-provider connectors, scheduled automated control tests, OCR, AI analysis, SSO/MFA, email invitations, password recovery, training delivery, complete framework libraries and external certification systems are not implemented. Integration inventory always shows not connected. Readiness monitoring is triggered by a reviewer. Applicability statements cover only the recorded controls; starter controls are not a complete ISO implementation. Audit packages support human review and do not make certification decisions.
 
 Uploads are stored in PostgreSQL; production scale requires malware scanning, extraction isolation, object storage, backup/retention controls and upload capacity limits. Sign-in uses an in-process attempt limit; a shared rate limiter and account recovery are needed before public client rollout. Validate with a dedicated staging environment before real client data is onboarded.

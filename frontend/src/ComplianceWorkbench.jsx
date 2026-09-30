@@ -193,9 +193,11 @@ export function ComplianceWorkbench({
                   />
                 </label>
               )}
-              {item.data.checksum && <a href={"/api/service" + base + "/files/" + item.id}>
-                Download original upload
-              </a>}
+              {item.data.checksum && (
+                <a href={"/api/service" + base + "/files/" + item.id}>
+                  Download original upload
+                </a>
+              )}
               <button
                 className="secondary"
                 onClick={() =>

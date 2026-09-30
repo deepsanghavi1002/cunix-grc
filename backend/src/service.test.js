@@ -8,20 +8,20 @@ import { pool } from "./db.js";
 import { service } from "./service.js";
 
 test("workspace lifecycle enforces isolation and human document approval", async (context) => {
-  if (process.env.TEST_REAL_DATABASE === 'true') {
+  if (process.env.TEST_REAL_DATABASE === "true") {
     context.after(() => pool.end());
   } else {
-  const memory = newDb();
-  memory.public.none(
-    "CREATE TABLE tenants(id UUID PRIMARY KEY,name TEXT NOT NULL,slug TEXT UNIQUE NOT NULL)",
-  );
-  memory.public.none(
-    await readFile(new URL("../db/service.sql", import.meta.url), "utf8"),
-  );
-  const adapter = memory.adapters.createPg();
-  const db = new adapter.Pool();
-  pool.query = db.query.bind(db);
-  pool.connect = db.connect.bind(db);
+    const memory = newDb();
+    memory.public.none(
+      "CREATE TABLE tenants(id UUID PRIMARY KEY,name TEXT NOT NULL,slug TEXT UNIQUE NOT NULL)",
+    );
+    memory.public.none(
+      await readFile(new URL("../db/service.sql", import.meta.url), "utf8"),
+    );
+    const adapter = memory.adapters.createPg();
+    const db = new adapter.Pool();
+    pool.query = db.query.bind(db);
+    pool.connect = db.connect.bind(db);
   }
   const app = express();
   app.use(express.json());
@@ -178,6 +178,29 @@ test("workspace lifecycle enforces isolation and human document approval", async
     .send({})
     .expect(403);
   await other.get(base + "/readiness").expect(403);
+  await admin
+    .post(base + "/members")
+    .send({
+      email: "auditor@example.com",
+      password: account.password,
+      name: "Auditor",
+      role: "auditor",
+    })
+    .expect(201);
+  const auditor = request.agent(app);
+  await auditor
+    .post("/api/login")
+    .send({ email: "auditor@example.com", password: account.password })
+    .expect(200);
+  await auditor.get(base + "/readiness").expect(200);
+  await auditor
+    .patch(base + "/records/" + control.id)
+    .send({ status: "passing" })
+    .expect(403);
+  await auditor
+    .post(base + "/monitor")
+    .send({})
+    .expect(403);
   const soa = (
     await admin.get(base + "/statement-of-applicability").expect(200)
   ).body;
