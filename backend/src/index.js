@@ -2,12 +2,14 @@ import 'dotenv/config';
 import express from 'express';
 import { dashboardRouter } from './routes/dashboard.js';
 import { findingsRouter } from './routes/findings.js';
+import { documentsRouter } from './routes/documents.js';
 
 const app = express();
 app.use(express.json());
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'cunix-grc' }));
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/findings', findingsRouter);
+app.use('/api/documents', documentsRouter);
 app.use(express.static('public'));
 app.get('*', (req, res, next) => req.path.startsWith('/api/') ? next() : res.sendFile('index.html', { root: 'public' }));
 app.use((error, _req, res, _next) => {
@@ -16,4 +18,3 @@ app.use((error, _req, res, _next) => {
 });
 
 app.listen(process.env.PORT || 3001, () => console.log('Cunix GRC API is listening'));
-

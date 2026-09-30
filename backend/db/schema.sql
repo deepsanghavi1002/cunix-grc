@@ -50,6 +50,27 @@ CREATE TABLE IF NOT EXISTS findings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS tenant_onboarding (
+  tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+  company_profile_complete BOOLEAN NOT NULL DEFAULT false,
+  scope_complete BOOLEAN NOT NULL DEFAULT false,
+  integrations_connected BOOLEAN NOT NULL DEFAULT false,
+  controls_reviewed BOOLEAN NOT NULL DEFAULT false,
+  owner TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS compliance_documents (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  document_type TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('processing', 'review_required', 'approved')) DEFAULT 'processing',
+  mapped_control_ids UUID[] NOT NULL DEFAULT '{}',
+  gap_summary TEXT,
+  uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 INSERT INTO tenants (id, name, slug) VALUES
   ('00000000-0000-4000-8000-000000000001', 'Acme Health', 'acme-health')
 ON CONFLICT (slug) DO NOTHING;
@@ -79,3 +100,11 @@ INSERT INTO findings (id, tenant_id, control_id, title, severity, owner, due_dat
   ('40000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000002', 'Endpoint-monitoring evidence has expired', 'high', 'Security', CURRENT_DATE + 7, 'open')
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO tenant_onboarding (tenant_id, company_profile_complete, scope_complete, integrations_connected, controls_reviewed, owner) VALUES
+  ('00000000-0000-4000-8000-000000000001', true, true, false, false, 'Cunix Compliance Team')
+ON CONFLICT (tenant_id) DO NOTHING;
+
+INSERT INTO compliance_documents (id, tenant_id, filename, document_type, status, mapped_control_ids, gap_summary) VALUES
+  ('50000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'Information Security Policy.pdf', 'policy', 'review_required', ARRAY['20000000-0000-4000-8000-000000000001']::UUID[], 'Annual management approval is missing from the submitted policy.'),
+  ('50000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', 'Access Review - Q2.xlsx', 'access_review', 'approved', ARRAY['20000000-0000-4000-8000-000000000001']::UUID[], NULL)
+ON CONFLICT (id) DO NOTHING;
