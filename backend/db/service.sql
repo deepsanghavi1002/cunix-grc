@@ -5,3 +5,20 @@ CREATE TABLE IF NOT EXISTS service_records (id UUID PRIMARY KEY, tenant_id UUID 
 CREATE INDEX IF NOT EXISTS service_records_tenant ON service_records(tenant_id,kind);
 CREATE TABLE IF NOT EXISTS service_events (id UUID PRIMARY KEY, tenant_id UUID REFERENCES tenants(id), actor_id UUID REFERENCES service_users(id), action TEXT NOT NULL, record_id UUID, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS service_files (record_id UUID PRIMARY KEY REFERENCES service_records(id), tenant_id UUID REFERENCES tenants(id), filename TEXT NOT NULL, content BYTEA NOT NULL, checksum TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS service_versions (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  record_id UUID NOT NULL REFERENCES service_records(id),
+  actor_id UUID NOT NULL REFERENCES service_users(id),
+  data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS service_acknowledgements (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
+  record_id UUID NOT NULL REFERENCES service_records(id),
+  user_id UUID NOT NULL REFERENCES service_users(id),
+  version INTEGER NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(record_id,user_id,version)
+);

@@ -40,6 +40,11 @@ jobs:
       - run: pnpm run --dir backend test
       - run: pnpm run --dir frontend build
       - run: DATABASE_URL=postgres://cunix:ci-password@localhost:5432/cunix_grc pnpm run --dir backend migrate
+      - name: PostgreSQL workflow integration tests
+        run: pnpm run --dir backend test
+        env:
+          DATABASE_URL: postgres://cunix:ci-password@localhost:5432/cunix_grc
+          TEST_REAL_DATABASE: 'true'
       - run: docker build --tag cunix-grc:ci .
       - name: Container smoke test
         run: |
