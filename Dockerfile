@@ -1,6 +1,6 @@
 FROM node:22-bookworm-slim AS web-build
 WORKDIR /build/frontend
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN corepack enable && corepack prepare pnpm@11.19.0 --activate && pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN npm run build
