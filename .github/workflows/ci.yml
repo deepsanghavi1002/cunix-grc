@@ -37,6 +37,7 @@ jobs:
       - run: pnpm install --dir backend --frozen-lockfile
       - run: pnpm install --dir frontend --frozen-lockfile
       - run: pnpm run --dir backend check
+      - run: pnpm run --dir backend test
       - run: pnpm run --dir frontend build
       - run: DATABASE_URL=postgres://cunix:ci-password@localhost:5432/cunix_grc pnpm run --dir backend migrate
       - run: docker build --tag cunix-grc:ci .

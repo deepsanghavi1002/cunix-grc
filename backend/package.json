@@ -4,16 +4,25 @@
   "private": true,
   "packageManager": "pnpm@11.19.0",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
+    "test": "node --test src/service.test.js",
     "migrate": "node src/migrate.js",
     "check": "node --check src/index.js && node --check src/routes/dashboard.js && node --check src/routes/findings.js && node --check src/routes/documents.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "mammoth": "^1.13.0",
+    "pdfjs-dist": "^6.3.289",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "pg-mem": "^3.0.14",
+    "supertest": "^7.3.0"
   }
 }

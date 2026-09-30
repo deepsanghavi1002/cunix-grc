@@ -71,8 +71,8 @@ jobs:
         run: |
           install -m 750 -d /home/dhs/apps/cunix-grc
           install -m 640 deploy/compose.production.yml /home/dhs/apps/cunix-grc/compose.production.yml.new
+          install -m 750 deploy/deploy-release.sh /home/dhs/apps/cunix-grc/deploy-release.sh
       - name: Deploy immutable image and verify
         env:
           DEPLOY_IMAGE: ${{ needs.publish.outputs.image }}
         run: DEPLOY_IMAGE="$DEPLOY_IMAGE" /home/dhs/apps/cunix-grc/deploy-release.sh
-

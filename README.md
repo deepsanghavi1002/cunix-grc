@@ -1,5 +1,7 @@
 # Cunix GRC
 
+The service now includes authenticated client workspaces, role-based document reviews, real document uploads, and compliance registers. See [service guide](docs/SERVICE.md) for onboarding instructions, implemented capabilities and production limitations. The previous unauthenticated demo APIs are disabled.
+
 Cunix GRC is a multi-tenant compliance workspace for managing client frameworks, controls, evidence, and remediation work. The first release targets SOC 2 and ISO 27001 readiness for cloud-first clients.
 
 ## Included today
