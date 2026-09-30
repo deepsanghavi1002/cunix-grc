@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd /home/dhs/apps/cunix-grc
+exec 9>deploy.lock
+flock -x 9
 : "${DEPLOY_IMAGE:?An immutable image is required}"
 test -f cunix-grc.env
 test -f compose.production.yml.new

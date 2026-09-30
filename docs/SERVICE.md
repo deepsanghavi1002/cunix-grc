@@ -20,7 +20,7 @@ Scope, controls, document intake and human review, risk register, vendor registe
 
 Use TLS at the reverse proxy and set APP_ORIGIN to the exact HTTPS client origin. Production cookies are Secure, HttpOnly and SameSite=Strict. Database credentials belong in the server environment, not Git. Migrations create the service tables in addition to the legacy demo tables. Legacy unauthenticated APIs have been disabled.
 
-CI executes the workspace-isolation and document-approval integration test, frontend build, PostgreSQL migration and container smoke test. Production deployment requires a configured self-hosted runner and server environment. The server deployment script and infrastructure must be provisioned separately.
+CI executes the workspace-isolation and document-approval integration test, frontend build, PostgreSQL migration and container smoke test. Production deployment requires a configured self-hosted runner, server environment, and the repository variable ENABLE_DEPLOY=true. The workflow installs the supplied deployment script. Deployment is serialized on the server and restores the previous image if health verification fails; database migration rollback is not automatic.
 
 ## Current limits
 

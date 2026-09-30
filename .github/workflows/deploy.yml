@@ -7,7 +7,7 @@ on:
     types: [completed]
 
 concurrency:
-  group: cunix-grc-production
+  group: cunix-grc-${{ github.event.workflow_run.head_sha || github.sha }}
   cancel-in-progress: false
 
 permissions:
@@ -58,6 +58,7 @@ jobs:
         run: echo "value=ghcr.io/${GITHUB_REPOSITORY,,}:sha-${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
   deploy:
     needs: publish
+    if: vars.ENABLE_DEPLOY == 'true'
     runs-on: [self-hosted, Linux, X64, cunix-grc]
     environment: production
     steps:
