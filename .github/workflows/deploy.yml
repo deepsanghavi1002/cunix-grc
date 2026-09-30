@@ -1,0 +1,78 @@
+name: Publish and deploy
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+concurrency:
+  group: cunix-grc-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    outputs:
+      image: ${{ steps.image.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=sha-${{ env.RELEASE_SHA }}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+      - id: image
+        run: echo "value=ghcr.io/${GITHUB_REPOSITORY,,}:sha-${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
+  deploy:
+    needs: publish
+    runs-on: [self-hosted, Linux, X64, cunix-grc]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Stage deployment manifest
+        run: |
+          install -m 750 -d /home/dhs/apps/cunix-grc
+          install -m 640 deploy/compose.production.yml /home/dhs/apps/cunix-grc/compose.production.yml.new
+      - name: Deploy immutable image and verify
+        env:
+          DEPLOY_IMAGE: ${{ needs.publish.outputs.image }}
+        run: DEPLOY_IMAGE="$DEPLOY_IMAGE" /home/dhs/apps/cunix-grc/deploy-release.sh
+

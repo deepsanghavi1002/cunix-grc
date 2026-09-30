@@ -1,0 +1,8 @@
+services:
+  app:
+    image: ${DEPLOY_IMAGE}
+    restart: unless-stopped
+    env_file: /home/dhs/apps/cunix-grc/cunix-grc.env
+    ports:
+      - "127.0.0.1:3011:3001"
+

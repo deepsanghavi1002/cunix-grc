@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cunix
+      POSTGRES_PASSWORD: cunix
+      POSTGRES_DB: cunix_grc
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cunix -d cunix_grc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://cunix:cunix@db:5432/cunix_grc
+      APP_ORIGIN: http://localhost:5173
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    build: ./frontend
+    environment:
+      API_PROXY_TARGET: http://api:3001
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+volumes:
+  pgdata:
+
