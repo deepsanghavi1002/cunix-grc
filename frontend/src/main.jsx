@@ -120,7 +120,7 @@ function App() {
         <h1>Your compliance workspace</h1>
         <p>Manage the work behind audit readiness.</p>
         {error && <p role="alert">{error}</p>}
-        <button onClick={() => location.assign("/api/oidc/login")}>Sign in with CUNIX Inspire</button>
+        <button onClick={() => location.assign("/api/service/oidc/login")}>Sign in with CUNIX Inspire</button>
         <details>
           <summary>Emergency local sign-in</summary>
         <form onSubmit={login}>
