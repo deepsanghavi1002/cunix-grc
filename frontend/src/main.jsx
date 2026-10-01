@@ -120,6 +120,9 @@ function App() {
         <h1>Your compliance workspace</h1>
         <p>Manage the work behind audit readiness.</p>
         {error && <p role="alert">{error}</p>}
+        <button onClick={() => location.assign("/api/oidc/login")}>Sign in with CUNIX Inspire</button>
+        <details>
+          <summary>Emergency local sign-in</summary>
         <form onSubmit={login}>
           {register && (
             <>
@@ -151,6 +154,7 @@ function App() {
             {register ? "Create workspace" : "Sign in"}
           </button>
         </form>
+        </details>
         <button className="secondary" onClick={() => setRegister(!register)}>
           {register ? "Back to sign in" : "Create a client workspace"}
         </button>

@@ -10,6 +10,7 @@ import { pool } from "./db.js";
 import { extract } from "./extract.js";
 import { workflows } from "./workflows.js";
 import { riskScores } from "./readiness.js";
+import { oidcRouter } from "./oidc.js";
 
 export const service = Router();
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -178,6 +179,7 @@ service.post(
     res.json({ name: rows[0].name });
   }),
 );
+service.use("/oidc",oidcRouter(async(_req,res,profile)=>{const db=await pool.connect();try{await db.query("BEGIN");let result=await db.query("SELECT * FROM service_users WHERE email=$1",[profile.email]);let user=result.rows[0];if(!user){const id=randomUUID();await db.query("INSERT INTO service_users VALUES($1,$2,$3,$4)",[id,profile.email,passwordHash(randomBytes(48).toString("hex")),profile.name||profile.preferred_username||profile.email]);user={id,email:profile.email,name:profile.name||profile.email}}const tenants=await db.query("SELECT id FROM tenants");for(const tenant of tenants.rows)await db.query("INSERT INTO service_memberships(user_id,tenant_id,role) VALUES($1,$2,'admin') ON CONFLICT DO NOTHING",[user.id,tenant.id]);const token=randomBytes(32).toString("hex");await db.query("INSERT INTO service_sessions VALUES($1,$2,now()+interval '8 hours')",[hash(token),user.id]);await db.query("COMMIT");res.cookie("grc_session",token,{httpOnly:true,sameSite:"lax",secure:true,maxAge:28800000,path:"/"});res.redirect("/")}catch(e){await db.query("ROLLBACK");throw e}finally{db.release()}}));
 service.use((req, res, next) => {
   (async () => {
     const token = (req.headers.cookie || "")
