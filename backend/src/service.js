@@ -13,6 +13,7 @@ import { riskScores, readiness } from "./readiness.js";
 import { stages, seedStages, stageKey, invalidateStage } from "./stages.js";
 import { isms, programHealth } from "./isms.js";
 import { collectorIngest, collectorSettings } from "./collector.js";
+import { oidcRouter, grantMasterMemberships } from "./oidc.js";
 
 export const service = Router();
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -181,6 +182,57 @@ service.post(
       path: "/",
     });
     res.json({ name: rows[0].name });
+  }),
+);
+service.get("/auth-config", (_req, res) =>
+  res.json({ centralLogin: Boolean(process.env.OIDC_CLIENT_SECRET) }),
+);
+service.use(
+  "/oidc",
+  oidcRouter(async (_req, res, profile) => {
+    const db = await pool.connect();
+    try {
+      await db.query("BEGIN");
+      let result = await db.query(
+        "SELECT * FROM service_users WHERE email=$1",
+        [profile.email],
+      );
+      let user = result.rows[0];
+      if (!user) {
+        const id = randomUUID();
+        await db.query("INSERT INTO service_users VALUES($1,$2,$3,$4)", [
+          id,
+          profile.email,
+          passwordHash(randomBytes(48).toString("hex")),
+          profile.name || profile.preferred_username || profile.email,
+        ]);
+        user = {
+          id,
+          email: profile.email,
+          name: profile.name || profile.email,
+        };
+      }
+      await grantMasterMemberships(db, user.id, profile.isAdmin);
+      const token = randomBytes(32).toString("hex");
+      await db.query(
+        "INSERT INTO service_sessions VALUES($1,$2,now()+interval '8 hours')",
+        [hash(token), user.id],
+      );
+      await db.query("COMMIT");
+      res.cookie("grc_session", token, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: true,
+        maxAge: 28800000,
+        path: "/",
+      });
+      res.redirect("/");
+    } catch (e) {
+      await db.query("ROLLBACK");
+      throw e;
+    } finally {
+      db.release();
+    }
   }),
 );
 service.use((req, res, next) => {

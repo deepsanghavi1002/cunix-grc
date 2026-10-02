@@ -59,6 +59,18 @@ const navigation = [
 
 function Login({ onLogin, error, busy }) {
   const [register, setRegister] = useState(false);
+  const [centralLogin, setCentralLogin] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    api("/auth-config")
+      .then((config) => {
+        if (mounted) setCentralLogin(config.centralLogin);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
   return (
     <div className="login-layout">
       <section className="login-story">
@@ -125,6 +137,20 @@ function Login({ onLogin, error, busy }) {
             <p className="error-banner" role="alert">
               {error}
             </p>
+          )}
+          {centralLogin && !register && (
+            <>
+              <button
+                className="primary full-button"
+                type="button"
+                onClick={() =>
+                  window.location.assign("/api/service/oidc/login")
+                }
+              >
+                Sign in with CUNIX Inspire
+              </button>
+              <p className="muted">Emergency local sign-in</p>
+            </>
           )}
           {register && (
             <>

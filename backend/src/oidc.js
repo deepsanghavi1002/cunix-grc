@@ -1,0 +1,115 @@
+import crypto from "node:crypto";
+import { Router } from "express";
+const issuer = (
+  process.env.OIDC_ISSUER ||
+  "https://accounts.cunixinspire.com/application/o/cunix-grc/"
+).replace(/\/$/, "");
+const oidcBase = new URL("/application/o", issuer)
+  .toString()
+  .replace(/\/$/, "");
+const clientId = process.env.OIDC_CLIENT_ID || "cunix-grc",
+  secret = process.env.OIDC_CLIENT_SECRET || "",
+  redirectUri =
+    process.env.OIDC_REDIRECT_URI ||
+    "https://grc.cunixinspire.com/api/service/oidc/callback";
+const admin = (
+    process.env.OIDC_ADMIN_EMAIL || "deepsanghavi1002@gmail.com"
+  ).toLowerCase(),
+  domain = (
+    process.env.OIDC_ALLOWED_DOMAIN || "cunixinfotech.com"
+  ).toLowerCase();
+const cookie = (req, name) =>
+  decodeURIComponent(
+    (req.headers.cookie || "")
+      .split(";")
+      .map((x) => x.trim())
+      .find((x) => x.startsWith(`${name}=`))
+      ?.slice(name.length + 1) || "",
+  );
+export async function grantMasterMemberships(db, userId, isMaster) {
+  if (isMaster !== true) return;
+  const { rows } = await db.query("SELECT id FROM tenants");
+  for (const tenant of rows)
+    await db.query(
+      "INSERT INTO service_memberships(user_id,tenant_id,role) VALUES($1,$2,'admin') ON CONFLICT DO NOTHING",
+      [userId, tenant.id],
+    );
+}
+export function oidcRouter(onLogin) {
+  const r = Router();
+  r.get("/login", (req, res) => {
+    if (!secret)
+      return res
+        .status(503)
+        .json({
+          error: "Central sign-in is not configured for this deployment.",
+        });
+    const state = crypto.randomBytes(24).toString("base64url"),
+      verifier = crypto.randomBytes(48).toString("base64url"),
+      challenge = crypto
+        .createHash("sha256")
+        .update(verifier)
+        .digest("base64url");
+    res.cookie(
+      "grc_oidc_tx",
+      Buffer.from(JSON.stringify({ state, verifier })).toString("base64url"),
+      {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 600000,
+        path: "/api/service/oidc",
+      },
+    );
+    res.redirect(
+      `${oidcBase}/authorize/?${new URLSearchParams({ client_id: clientId, response_type: "code", redirect_uri: redirectUri, scope: "openid profile email", state, code_challenge: challenge, code_challenge_method: "S256" })}`,
+    );
+  });
+  r.get("/callback", async (req, res, next) => {
+    try {
+      if (!secret) throw new Error("Central login is not configured");
+      const tx = JSON.parse(
+        Buffer.from(cookie(req, "grc_oidc_tx"), "base64url"),
+      );
+      if (!req.query.code || req.query.state !== tx.state)
+        throw new Error("Invalid login transaction");
+      res.clearCookie("grc_oidc_tx", {
+        path: "/api/service/oidc",
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+      });
+      const body = new URLSearchParams({
+        grant_type: "authorization_code",
+        code: String(req.query.code),
+        redirect_uri: redirectUri,
+        client_id: clientId,
+        client_secret: secret,
+        code_verifier: tx.verifier,
+      });
+      const tr = await fetch(`${oidcBase}/token/`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body,
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!tr.ok) throw new Error("Identity token exchange failed");
+      const tokens = await tr.json(),
+        ur = await fetch(`${oidcBase}/userinfo/`, {
+          headers: { authorization: `Bearer ${tokens.access_token}` },
+          signal: AbortSignal.timeout(15000),
+        });
+      if (!ur.ok) throw new Error("Identity lookup failed");
+      const p = await ur.json(),
+        email = String(p.email || "").toLowerCase();
+      if (p.email_verified !== true || !p.sub)
+        return res.status(403).send("A verified identity email is required");
+      if (email !== admin && !email.endsWith(`@${domain}`))
+        return res.status(403).send("CUNIX account required");
+      await onLogin(req, res, { ...p, email, isAdmin: email === admin });
+    } catch (e) {
+      next(e);
+    }
+  });
+  return r;
+}

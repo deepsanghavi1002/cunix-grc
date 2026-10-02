@@ -8,6 +8,7 @@ import { pool } from "./db.js";
 import { service } from "./service.js";
 import { requirements } from "./isms-catalog.js";
 import { evaluateSignals, runMonitor } from "./isms.js";
+import { grantMasterMemberships } from "./oidc.js";
 
 test("ISMS coverage includes 93 controls and 25 management topics without duplicates", () => {
   assert.equal(requirements.filter((r) => r.ref.startsWith("A.")).length, 93);
@@ -368,6 +369,16 @@ test("guided service isolates tenants, preserves reviews and schedules accepted 
   const config = (await client.get(iso + "/collector")).body;
   assert.equal(config.observations.length, 1);
   assert.equal(config.config.token_hash, undefined);
+  const clientId = (await client.get("/api/me")).body.user.id;
+  await grantMasterMemberships(pool, clientId, false);
+  assert.equal((await client.get("/api/me")).body.workspaces.length, 1);
+  assert.equal((await client.get("/api/me")).body.workspaces[0].role, "client");
+  const ownerId = (await admin.get("/api/me")).body.user.id;
+  await grantMasterMemberships(pool, ownerId, true);
+  const masterWorkspaces=(await admin.get('/api/me')).body.workspaces;
+  assert.ok(masterWorkspaces.some(w=>w.id===tenant&&w.role==='admin'));
+  assert.ok(masterWorkspaces.some(w=>w.id===otherTenant&&w.role==='admin'));
+  await other.get(iso).expect(403);
   await admin
     .post(iso + "/monitor")
     .send({})
