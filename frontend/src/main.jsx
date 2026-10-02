@@ -1,612 +1,947 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import "./styles.css";
-import "./service.css";
+import {
+  FeedbackContext,
+  Badge,
+  Empty,
+  Icon,
+  Modal,
+  PageHeading,
+  Stat,
+  label,
+} from "./ui.jsx";
+import { Pipeline, StageDetail, RecordsPanel, Team } from "./Workspace.jsx";
+import { Documents } from "./Documents.jsx";
 import { ComplianceWorkbench } from "./ComplianceWorkbench.jsx";
-const modules = [
-  "Overview",
-  "Readiness",
-  "Scope",
-  "Controls",
-  "Documents",
-  "Risks",
-  "Vendors",
-  "Assets",
-  "Policies",
-  "Tasks",
-  "Training",
-  "Integrations",
-  "Activity",
-  "Members",
-];
-async function api(path, method = "GET", body) {
-  const r = await fetch("/api/service" + path, {
+import { ISMS, AttentionQueue } from "./ISMS.jsx";
+import "./styles.css";
+import "./isms.css";
+
+async function api(path, method = "GET", body, signal) {
+  const response = await fetch("/api/service" + path, {
     method,
+    signal,
     headers: body ? { "Content-Type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await r.json();
-  if (!r.ok) throw Error(data.error);
+  const data = await response.json();
+  if (!response.ok)
+    throw Error(data.error || "The request could not be completed.");
   return data;
 }
-function App() {
-  const [me, setMe] = useState(null),
-    [tenant, setTenant] = useState(""),
-    [records, setRecords] = useState([]),
-    [events, setEvents] = useState([]),
-    [page, setPage] = useState("Overview"),
-    [error, setError] = useState(""),
-    [register, setRegister] = useState(false),
-    [busy, setBusy] = useState(false);
-  const base = `/workspaces/${tenant}`;
-  const run = async (fn) => {
-    setBusy(true);
-    setError("");
-    try {
-      await fn();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const refresh = async () => {
-    if (tenant) {
-      setRecords(await api(base + "/records"));
-      setEvents(await api(base + "/events"));
-    }
-  };
+const navigate = (path) => {
+  window.location.hash = path;
+};
+function useRoute() {
+  const [hash, setHash] = useState(window.location.hash);
   useEffect(() => {
-    api("/me")
-      .then((x) => {
-        setMe(x);
-        setTenant(x.workspaces[0]?.id || "");
-      })
-      .catch(() => {});
+    const update = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
   }, []);
-  useEffect(() => {
-    run(refresh);
-  }, [tenant]);
-  const login = (e) => {
-    e.preventDefault();
-    const body = Object.fromEntries(new FormData(e.target));
-    run(async () => {
-      if (register) {
-        await api("/register", "POST", body);
-        setRegister(false);
-      }
-      await api("/login", "POST", body);
-      const x = await api("/me");
-      setMe(x);
-      setTenant(x.workspaces[0]?.id || "");
-    });
+  const parts = hash.replace(/^#\/?/, "").split("/");
+  return {
+    workspaceId: parts[0] === "workspace" ? parts[1] : "",
+    page: parts[0] === "workspace" ? parts[2] || "pipeline" : "clients",
+    detail: parts[3] || "",
   };
-  const save = (e) => {
-    e.preventDefault();
-    const body = Object.fromEntries(new FormData(e.target));
-    run(async () => {
-      await api(base + "/records/" + page.toLowerCase(), "POST", body);
-      e.target.reset();
-      await refresh();
-    });
-  };
-  const upload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Maximum upload size is 5 MB.");
-      return;
-    }
-    run(async () => {
-      const content = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      await api(base + "/upload", "POST", { filename: file.name, content });
-      await refresh();
-    });
-  };
-  const update = (id, body) =>
-    run(async () => {
-      await api(base + "/records/" + id, "PATCH", body);
-      await refresh();
-    });
-  if (!me)
-    return (
-      <main className="auth">
-        <p className="eyebrow">CUNIX / CONTINUOUS COMPLIANCE</p>
-        <h1>Your compliance workspace</h1>
-        <p>Manage the work behind audit readiness.</p>
-        {error && <p role="alert">{error}</p>}
-        <form onSubmit={login}>
+}
+const navigation = [
+  ["isms", "shield", "Guided ISMS & monitoring"],
+  ["pipeline", "layers", "Engagement timeline"],
+  ["documents", "file", "Document library"],
+  ["reviews", "check", "Review workspace"],
+  ["readiness", "shield", "Readiness & audits"],
+  ["registers", "grid", "Registers"],
+  ["team", "people", "People & access"],
+  ["activity", "clock", "Activity log"],
+];
+
+function Login({ onLogin, error, busy }) {
+  const [register, setRegister] = useState(false);
+  return (
+    <div className="login-layout">
+      <section className="login-story">
+        <div className="brand">
+          <span className="brand-mark">
+            <Icon name="shield" size={24} />
+          </span>
+          <div>
+            <strong>
+              CUNIX <span>GRC</span>
+            </strong>
+            <small>Compliance delivery workspace</small>
+          </div>
+        </div>
+        <div className="story-copy">
+          <p className="eyebrow">CLARITY AT EVERY STAGE</p>
+          <h1>
+            From client onboarding
+            <br />
+            to audit readiness.
+          </h1>
+          <p>
+            Bring your clients, documents and review decisions together in one
+            connected delivery workflow.
+          </p>
+          <div className="story-steps">
+            {[
+              "Onboard the client",
+              "Collect the evidence",
+              "Review and deliver",
+            ].map((text, index) => (
+              <div key={text}>
+                <span>0{index + 1}</span>
+                {text}
+                <Icon name="check" size={16} />
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="story-footer">
+          <Icon name="shield" size={16} />
+          Dedicated client workspaces. Human-reviewed outcomes.
+        </p>
+      </section>
+      <main className="login-side">
+        <form
+          className="login-card"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onLogin(
+              Object.fromEntries(new FormData(event.currentTarget)),
+              register,
+            );
+          }}
+        >
+          <p className="eyebrow">YOUR DELIVERY WORKSPACE</p>
+          <h2>{register ? "Create your workspace" : "Welcome back"}</h2>
+          <p className="muted">
+            {register
+              ? "Set up your organization to begin managing client engagements."
+              : "Sign in to continue your client engagements."}
+          </p>
+          {error && (
+            <p className="error-banner" role="alert">
+              {error}
+            </p>
+          )}
           {register && (
             <>
               <label>
-                Company
-                <input name="company" required />
+                Organization
+                <input name="company" required autoComplete="organization" />
               </label>
               <label>
                 Your name
-                <input name="name" required />
+                <input name="name" required autoComplete="name" />
               </label>
             </>
           )}
           <label>
-            Email
-            <input type="email" name="email" required />
+            Email address
+            <input type="email" name="email" required autoComplete="email" />
           </label>
           <label>
             Password
             <input
               type="password"
               name="password"
-              minLength={12}
               required
+              minLength={register ? 12 : undefined}
               autoComplete={register ? "new-password" : "current-password"}
             />
           </label>
-          <button disabled={busy}>
-            {register ? "Create workspace" : "Sign in"}
+          <button className="primary full-button" disabled={busy}>
+            {busy
+              ? "Opening workspace…"
+              : register
+                ? "Create workspace"
+                : "Open workspace"}
+            <Icon name="arrow" size={17} />
+          </button>
+          <button
+            type="button"
+            className="text-button login-switch"
+            onClick={() => setRegister(!register)}
+          >
+            {register
+              ? "Already have an account? Sign in"
+              : "New here? Create an organization"}
           </button>
         </form>
-        <button className="secondary" onClick={() => setRegister(!register)}>
-          {register ? "Back to sign in" : "Create a client workspace"}
-        </button>
+        <p className="login-footnote">
+          Cunix GRC · Organized evidence. Clear ownership.
+        </p>
       </main>
+    </div>
+  );
+}
+
+function App() {
+  const route = useRoute();
+  const [me, setMe] = useState(null),
+    [booting, setBooting] = useState(true),
+    [portfolio, setPortfolio] = useState([]),
+    [data, setData] = useState(null);
+  const [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
+    [creating, setCreating] = useState(false),
+    [mobile, setMobile] = useState(false),
+    [search, setSearch] = useState("");
+  const activeWorkspace = useRef(route.workspaceId);
+  activeWorkspace.current = route.workspaceId;
+  const requestVersion = useRef(0);
+  const workspace = me?.workspaces.find(
+    (item) => item.id === route.workspaceId,
+  );
+  const base = workspace ? `/workspaces/${workspace.id}` : "";
+  const loadWorkspace = useCallback(async (id, signal) => {
+    const version = ++requestVersion.current;
+    const paths = [
+      "records",
+      "stages",
+      "events",
+      "members",
+      "readiness",
+      "trash",
+      "isms",
+      "isms/collector",
+    ];
+    const results = await Promise.all(
+      paths.map((path) =>
+        api(`/workspaces/${id}/${path}`, "GET", undefined, signal),
+      ),
     );
-  const role = me.workspaces.find((w) => w.id === tenant)?.role;
-  const current = records.filter((r) => r.kind === page.toLowerCase());
-  const controls = records.filter((r) => r.kind === "controls"),
-    docs = records.filter((r) => r.kind === "documents"),
-    tasks = records.filter((r) => r.kind === "tasks");
+    if (activeWorkspace.current === id && requestVersion.current === version)
+      setData({
+        id,
+        ...Object.fromEntries(
+          paths.map((path, index) => [path, results[index]]),
+        ),
+      });
+  }, []);
+  const refreshPortfolio = useCallback(
+    async () => setPortfolio(await api("/portfolio")),
+    [],
+  );
+  useEffect(() => {
+    api("/me")
+      .then((profile) => {
+        setMe(profile);
+        return refreshPortfolio();
+      })
+      .catch(() => {})
+      .finally(() => setBooting(false));
+  }, []);
+  useEffect(() => {
+    setMobile(false);
+    setError("");
+    setNotice("");
+    if (!workspace) {
+      setData(null);
+      return;
+    }
+    const controller = new AbortController();
+    setData(null);
+    loadWorkspace(workspace.id, controller.signal).catch((error) => {
+      if (error.name !== "AbortError") setError(error.message);
+    });
+    return () => controller.abort();
+  }, [workspace?.id, loadWorkspace]);
+  const refresh = async () => {
+    await Promise.all([
+      refreshPortfolio(),
+      workspace ? loadWorkspace(workspace.id) : Promise.resolve(),
+    ]);
+  };
+  const perform = async (action, message = "") => {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    const id = activeWorkspace.current;
+    try {
+      await action();
+      if (id === activeWorkspace.current) await refresh();
+      setNotice(message);
+      return true;
+    } catch (error) {
+      setError(error.message);
+      if (id && id === activeWorkspace.current)
+        await loadWorkspace(id).catch(() => {});
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+  const onLogin = async (values, register) => {
+    setBusy(true);
+    setError("");
+    try {
+      if (register) await api("/register", "POST", values);
+      await api("/login", "POST", values);
+      setMe(await api("/me"));
+      await refreshPortfolio();
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (booting)
+    return (
+      <div className="loading-screen">
+        <span className="brand-mark">
+          <Icon name="shield" />
+        </span>
+        <p>Opening your workspace…</p>
+      </div>
+    );
+  if (!me) return <Login onLogin={onLogin} busy={busy} error={error} />;
+  const canCreate = me.workspaces.some((item) => item.role === "admin");
+  const toPage = (page, detail = "") => {
+    setError("");
+    setNotice("");
+    setMobile(false);
+    navigate(`/workspace/${workspace.id}/${page}${detail ? "/" + detail : ""}`);
+  };
+  const currentData = data?.id === workspace?.id ? data : null;
+  const props = currentData && {
+    ...currentData,
+    workspace,
+    role: workspace.role,
+    api,
+    perform,
+    busy,
+  };
+  const currentStage = currentData?.stages.find(
+    (stage) => stage.key === route.detail,
+  );
+  const filtered = portfolio.filter((item) =>
+    item.name.toLowerCase().includes(search.toLowerCase()),
+  );
   return (
-    <div className="shell">
-      <aside>
-        <h2>
-          CUNIX <span>GRC</span>
-        </h2>
-        <select
-          aria-label="Workspace"
-          value={tenant}
-          onChange={(e) => setTenant(e.target.value)}
-        >
-          {me.workspaces.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name}
-            </option>
-          ))}
-        </select>
-        <nav>
-          {modules.map((m) => (
-            <button
-              key={m}
-              className={page === m ? "selected" : "secondary"}
-              onClick={() => setPage(m)}
-            >
-              {m}
-            </button>
-          ))}
-        </nav>
-        <small>
-          {me.user.name} · {role}
-        </small>
-        <button
-          className="secondary"
-          onClick={() =>
-            run(async () => {
-              await api("/logout", "POST");
-              setMe(null);
-            })
-          }
-        >
-          Sign out
-        </button>
-      </aside>
-      <main>
-        <header>
-          <div>
-            <p className="eyebrow">CLIENT WORKSPACE / ISO 27001</p>
-            <h1>{page}</h1>
-          </div>
-          <a className="export" href={"/api/service" + base + "/export"}>
-            Export audit package
-          </a>
-        </header>
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-        {busy && <p role="status">Updating workspace…</p>}
-        {page === "Documents" && role !== "auditor" && (
-          <article className="card">
-            <h2>Upload evidence</h2>
-            <label>
-              PDF, DOCX, TXT, Markdown or CSV · maximum 5 MB
-              <input
-                type="file"
-                accept=".pdf,.docx,.txt,.md,.csv"
-                onChange={upload}
-                disabled={busy}
-              />
-            </label>
-            <p>
-              Originals are retained privately in this workspace. Extracted text
-              requires human review. Scanned PDFs require OCR.
-            </p>
-          </article>
-        )}
-        {page === "Readiness" ? (
-          <ComplianceWorkbench
-            base={base}
-            role={role}
-            api={api}
-            records={records}
-            refresh={refresh}
-            run={run}
+    <FeedbackContext.Provider value={error}>
+      <div className="app-shell">
+        {mobile && (
+          <button
+            className="mobile-backdrop"
+            aria-label="Close navigation"
+            onClick={() => setMobile(false)}
           />
-        ) : page === "Overview" ? (
-          <>
-            <section className="metrics">
-              <article>
-                <span>Control implementation</span>
-                <strong>
-                  {controls.filter((c) => c.data.status === "passing").length}/
-                  {controls.length}
-                </strong>
-                <small>Based on recorded control status</small>
-              </article>
-              <article>
-                <span>Evidence awaiting review</span>
-                <strong>
-                  {
-                    docs.filter((d) => d.data.status === "review_required")
-                      .length
-                  }
-                </strong>
-              </article>
-              <article>
-                <span>Open tasks</span>
-                <strong>
-                  {tasks.filter((t) => t.data.status !== "resolved").length}
-                </strong>
-              </article>
-            </section>
-            <article className="card">
-              <h2>Client onboarding</h2>
-              <ol>
-                <li>
-                  Complete Scope: describe services, locations, systems and
-                  information.
-                </li>
-                <li>Review the starter controls and their applicability.</li>
-                <li>
-                  Assign owners and register policies and operational evidence.
-                </li>
-                <li>
-                  Submit documents for a Cunix reviewer to approve or return.
-                </li>
-                <li>
-                  Track gaps through Tasks and export the evidence register.
-                </li>
-              </ol>
-              <p>
-                The starter control set is illustrative. Complete your licensed
-                ISO requirements and Statement of Applicability with your
-                compliance lead.
-              </p>
-            </article>
-          </>
-        ) : page === "Activity" ? (
-          <article className="card">
-            {events.map((e) => (
-              <div className="finding" key={e.id}>
-                <b>{e.action}</b>
-                <small>
-                  {e.actor} · {new Date(e.created_at).toLocaleString()}
-                </small>
-              </div>
+        )}
+        <aside className={`sidebar ${mobile ? "mobile-open" : ""}`}>
+          <a
+            href="#/clients"
+            className="brand"
+            onClick={() => setMobile(false)}
+          >
+            <span className="brand-mark">
+              <Icon name="shield" size={24} />
+            </span>
+            <div>
+              <strong>
+                CUNIX <span>GRC</span>
+              </strong>
+              <small>Compliance delivery workspace</small>
+            </div>
+          </a>
+          <div className="sidebar-context">
+            <span className="context-dot" />
+            <div>
+              <strong>Client delivery</strong>
+              <small>Human-reviewed outcomes</small>
+            </div>
+          </div>
+          <a
+            href="#/clients"
+            className={`nav-link ${!workspace ? "selected" : ""}`}
+            onClick={() => setMobile(false)}
+          >
+            <Icon name="building" />
+            Client workspaces
+            <span className="nav-count">{me.workspaces.length}</span>
+          </a>
+          <div className="nav-label">ACTIVE WORKSPACE</div>
+          <select
+            className="workspace-select"
+            aria-label="Switch client workspace"
+            value={workspace?.id || ""}
+            onChange={(event) => {
+              setMobile(false);
+              navigate(
+                event.target.value
+                  ? `/workspace/${event.target.value}/isms`
+                  : "/clients",
+              );
+            }}
+          >
+            <option value="">Select a client workspace</option>
+            {me.workspaces.map((item) => (
+              <option value={item.id} key={item.id}>
+                {item.name}
+              </option>
             ))}
-          </article>
-        ) : page === "Members" ? (
-          <article className="card">
-            <h2>Onboard another client</h2>
-            {role === "admin" && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const body = Object.fromEntries(
-                    new FormData(e.currentTarget),
-                  );
-                  run(async () => {
-                    const created = await api("/workspaces", "POST", body);
-                    const profile = await api("/me");
-                    setMe(profile);
-                    setTenant(created.id);
-                  });
-                }}
-              >
-                <label>
-                  Client company
-                  <input name="company" required />
-                </label>
-                <button disabled={busy}>Create isolated workspace</button>
-              </form>
+          </select>
+          <nav>
+            {workspace ? (
+              navigation.map(([page, icon, text]) => (
+                <button
+                  key={page}
+                  className={`nav-link ${route.page === page || (page === "pipeline" && route.page === "stage") ? "selected" : ""}`}
+                  onClick={() => toPage(page)}
+                >
+                  <Icon name={icon} />
+                  {text}
+                  {page === "reviews" &&
+                    currentData?.records.filter(
+                      (item) =>
+                        item.kind === "documents" &&
+                        item.data.status !== "approved",
+                    ).length > 0 && (
+                      <span className="nav-count">
+                        {
+                          currentData.records.filter(
+                            (item) =>
+                              item.kind === "documents" &&
+                              item.data.status !== "approved",
+                          ).length
+                        }
+                      </span>
+                    )}
+                </button>
+              ))
+            ) : (
+              <div className="sidebar-help">
+                <Icon name="layers" size={25} />
+                <p>
+                  Select a client to open their delivery timeline, documents and
+                  review workspace.
+                </p>
+              </div>
             )}
-            <h2>Create client or reviewer access</h2>
+          </nav>
+          <div className="sidebar-footer">
+            <span className="avatar">
+              {me.user.name.slice(0, 2).toUpperCase()}
+            </span>
+            <div>
+              <strong>{me.user.name}</strong>
+              <small>
+                {workspace ? label(workspace.role) : "Your account"}
+              </small>
+            </div>
+            <button
+              className="logout"
+              aria-label="Sign out"
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await api("/logout", "POST", {});
+                  setMe(null);
+                  setData(null);
+                  navigate("/clients");
+                } catch (error) {
+                  setError(error.message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <Icon name="logout" size={18} />
+            </button>
+          </div>
+        </aside>
+        <div className="main-shell">
+          <div className="topbar">
+            <div className="topbar-location">
+              <button
+                className="icon-button mobile-toggle"
+                aria-label="Toggle navigation"
+                onClick={() => setMobile(!mobile)}
+              >
+                <Icon name="menu" />
+              </button>
+              <Icon name="building" size={16} />
+              <span>Client workspaces</span>
+              {workspace && (
+                <>
+                  <Icon name="chevron" size={13} />
+                  <strong>{workspace.name}</strong>
+                </>
+              )}
+            </div>
+            <span className="topbar-status">
+              <span />
+              Private workspace
+            </span>
+          </div>
+          <main className="page-content">
+            {error && (
+              <div className="error-banner" role="alert">
+                <Icon name="alert" size={18} />
+                {error}
+                <button
+                  className="icon-button"
+                  aria-label="Dismiss error"
+                  onClick={() => setError("")}
+                >
+                  <Icon name="close" size={15} />
+                </button>
+              </div>
+            )}
+            {notice && (
+              <div className="success-banner" role="status">
+                <Icon name="check" size={17} />
+                {notice}
+              </div>
+            )}
+            {busy && (
+              <div className="saving-indicator" role="status">
+                Saving changes…
+              </div>
+            )}
+            {!workspace ? (
+              <>
+                <PageHeading
+                  eyebrow="YOUR CLIENT PORTFOLIO"
+                  title="Client workspaces"
+                  description="One clear path from onboarding to audit readiness. Every client gets their own people, documents and delivery stages."
+                  actions={
+                    canCreate && (
+                      <button
+                        className="primary"
+                        onClick={() => {
+                          setError("");
+                          setCreating(true);
+                        }}
+                      >
+                        <Icon name="plus" size={18} />
+                        Onboard client
+                      </button>
+                    )
+                  }
+                />
+                <div className="portfolio-intro">
+                  <div>
+                    <span className="eyebrow">BUILT AROUND YOUR DELIVERY</span>
+                    <h2>
+                      Every engagement. Every stage.
+                      <br />
+                      One shared view.
+                    </h2>
+                    <p>
+                      Bring the right evidence, owners and approvals together in
+                      a dedicated workspace for each client.
+                    </p>
+                  </div>
+                  <div className="intro-stages">
+                    {[
+                      ["01", "Onboard", "people"],
+                      ["02", "Collect", "file"],
+                      ["03", "Review", "check"],
+                      ["04", "Deliver", "shield"],
+                    ].map(([number, text, icon]) => (
+                      <div key={number}>
+                        <span>
+                          <Icon name={icon} size={22} />
+                        </span>
+                        <small>{number}</small>
+                        <strong>{text}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="stats-grid portfolio-stats">
+                  <Stat
+                    icon="building"
+                    title="Client workspaces"
+                    value={portfolio.length}
+                    detail="Accessible to your account"
+                  />
+                  <Stat
+                    icon="layers"
+                    title="Stages approved"
+                    value={portfolio.reduce(
+                      (sum, item) => sum + item.approvedStages,
+                      0,
+                    )}
+                    detail="Across client engagements"
+                  />
+                  <Stat
+                    icon="file"
+                    title="Evidence documents"
+                    value={portfolio.reduce(
+                      (sum, item) => sum + item.documents,
+                      0,
+                    )}
+                    detail="Active documents in the library"
+                  />
+                  <Stat
+                    icon="clock"
+                    title="Awaiting review"
+                    value={portfolio.reduce(
+                      (sum, item) => sum + item.pending,
+                      0,
+                    )}
+                    detail="Ready for a reviewer’s attention"
+                    tone="amber"
+                  />
+                </div>
+                <div className="section-heading">
+                  <div>
+                    <h2>
+                      Your clients <span>{portfolio.length}</span>
+                    </h2>
+                    <p>Open a workspace to continue the engagement.</p>
+                  </div>
+                  <label className="search">
+                    <Icon name="search" />
+                    <input
+                      aria-label="Search clients"
+                      placeholder="Search client workspaces…"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <AttentionQueue portfolio={portfolio} />
+                <div className="client-grid">
+                  {filtered.map((item) => (
+                    <article className="client-card" key={item.id}>
+                      <div className="client-card-top">
+                        <span className="client-avatar">
+                          {item.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        <Badge
+                          status={
+                            item.approvedStages === 6
+                              ? "approved"
+                              : item.stages.some(
+                                    (stage) => stage.status !== "not_started",
+                                  )
+                                ? "in_progress"
+                                : "not_started"
+                          }
+                        />
+                      </div>
+                      <h3>{item.name}</h3>
+                      <p>ISO 27001 · Compliance engagement</p>
+                      <div className="client-progress">
+                        <div>
+                          <span>Delivery progress</span>
+                          <strong>{item.approvedStages} of 6 stages</strong>
+                        </div>
+                        <div className="progress-track">
+                          <span
+                            style={{
+                              width: `${(item.approvedStages / 6) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="client-card-meta">
+                        <span>
+                          <Icon name="file" size={15} />
+                          {item.documents} documents
+                        </span>
+                        <span>
+                          <Icon name="clock" size={15} />
+                          {item.pending} to review
+                        </span>
+                      </div>
+                      <a
+                        className="client-card-link"
+                        href={`#/workspace/${item.id}/isms`}
+                      >
+                        Open workspace
+                        <Icon name="arrow" size={17} />
+                      </a>
+                    </article>
+                  ))}
+                </div>
+                {!filtered.length && (
+                  <section className="panel">
+                    <Empty
+                      icon="building"
+                      title={
+                        search
+                          ? "No matching clients"
+                          : "Your next engagement starts here"
+                      }
+                    >
+                      {search
+                        ? "Try a different client name."
+                        : "Onboard a client to create their dedicated delivery workspace."}
+                    </Empty>
+                  </section>
+                )}
+              </>
+            ) : !currentData ? (
+              <div className="workspace-loading">
+                <span className="spinner" />
+                <h2>Loading {workspace.name}</h2>
+                <p>Bringing together stages, documents and review decisions.</p>
+              </div>
+            ) : (
+              <>
+                {route.page === "isms" && (
+                  <ISMS key={workspace.id} {...props} onPage={toPage} />
+                )}
+                {route.page === "pipeline" && (
+                  <Pipeline
+                    {...props}
+                    onStage={(key) => toPage("stage", key)}
+                    onDocuments={() => toPage("documents")}
+                  />
+                )}
+                {route.page === "stage" &&
+                  (currentStage ? (
+                    <StageDetail
+                      key={workspace.id + currentStage.key}
+                      {...props}
+                      stage={currentStage}
+                      onBack={() => toPage("pipeline")}
+                      onPage={toPage}
+                    />
+                  ) : (
+                    <Empty
+                      title="Stage not found"
+                      action={
+                        <button
+                          className="secondary"
+                          onClick={() => toPage("pipeline")}
+                        >
+                          Back to timeline
+                        </button>
+                      }
+                    >
+                      Choose a stage from this client’s engagement timeline.
+                    </Empty>
+                  ))}
+                {["documents", "reviews"].includes(route.page) && (
+                  <>
+                    <PageHeading
+                      eyebrow={workspace.name}
+                      title={
+                        route.page === "reviews"
+                          ? "Review workspace"
+                          : "Document library"
+                      }
+                      description={
+                        route.page === "reviews"
+                          ? "Review submitted evidence, record your decision and keep delivery moving."
+                          : "Upload, organize and review the documents behind this client’s engagement."
+                      }
+                    />
+                    <Documents
+                      key={workspace.id + route.page}
+                      {...props}
+                      reviewOnly={route.page === "reviews"}
+                    />
+                  </>
+                )}
+                {route.page === "registers" && (
+                  <>
+                    <PageHeading
+                      eyebrow={workspace.name}
+                      title="Compliance registers"
+                      description="Keep client controls, policies, risks and responsibilities organized."
+                    />
+                    <div className="register-tabs">
+                      {[
+                        "controls",
+                        "scope",
+                        "policies",
+                        "risks",
+                        "tasks",
+                        "assets",
+                        "vendors",
+                        "training",
+                        "integrations",
+                      ].map((kind) => (
+                        <button
+                          key={kind}
+                          className={
+                            (route.detail || "controls") === kind
+                              ? "active"
+                              : ""
+                          }
+                          onClick={() => toPage("registers", kind)}
+                        >
+                          {kind === "scope" ? "ISMS scope" : kind}
+                        </button>
+                      ))}
+                    </div>
+                    <RecordsPanel
+                      key={workspace.id + route.detail}
+                      {...props}
+                      kind={
+                        [
+                          "controls",
+                          "scope",
+                          "policies",
+                          "risks",
+                          "tasks",
+                          "assets",
+                          "vendors",
+                          "training",
+                          "integrations",
+                        ].includes(route.detail)
+                          ? route.detail
+                          : "controls"
+                      }
+                    />
+                  </>
+                )}
+                {route.page === "team" && (
+                  <Team key={workspace.id} {...props} />
+                )}
+                {route.page === "readiness" && (
+                  <>
+                    <PageHeading
+                      eyebrow={workspace.name}
+                      title="Readiness & audit preparation"
+                      description="Review evidence freshness, coordinate audit requests and prepare the client handover."
+                    />
+                    <ComplianceWorkbench
+                      key={workspace.id}
+                      base={base}
+                      role={workspace.role}
+                      api={api}
+                      records={currentData.records}
+                      refresh={refresh}
+                      run={perform}
+                    />
+                  </>
+                )}
+                {route.page === "activity" && (
+                  <>
+                    <PageHeading
+                      eyebrow={workspace.name}
+                      title="Activity log"
+                      description="A clear record of document changes, delivery progress and review decisions."
+                      actions={
+                        <a
+                          className="secondary"
+                          href={"/api/service" + base + "/export"}
+                        >
+                          <Icon name="download" size={16} />
+                          Export audit register
+                        </a>
+                      }
+                    />
+                    <section className="panel">
+                      <div className="activity-list">
+                        {currentData.events.map((event) => (
+                          <article key={event.id}>
+                            <span className="activity-dot">
+                              <Icon
+                                name={
+                                  event.action.startsWith("stage")
+                                    ? "layers"
+                                    : "file"
+                                }
+                                size={16}
+                              />
+                            </span>
+                            <div>
+                              <h3>
+                                {event.action
+                                  .replaceAll(".", " · ")
+                                  .replaceAll("_", " ")}
+                              </h3>
+                              <p>{event.actor}</p>
+                            </div>
+                            <time>
+                              {new Date(event.created_at).toLocaleString()}
+                            </time>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  </>
+                )}
+              </>
+            )}
+            <footer className="page-footer">
+              <span>CUNIX GRC</span>
+              <span>
+                Clear stages. Accountable reviews. Organized evidence.
+              </span>
+            </footer>
+          </main>
+        </div>
+        {creating && (
+          <Modal
+            title="Onboard a new client"
+            onClose={() => !busy && setCreating(false)}
+          >
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const body = Object.fromEntries(new FormData(e.target));
-                run(async () => {
-                  await api(base + "/members", "POST", body);
-                  e.target.reset();
-                });
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const values = Object.fromEntries(
+                  new FormData(event.currentTarget),
+                );
+                const done = await perform(async () => {
+                  const created = await api("/workspaces", "POST", values);
+                  const profile = await api("/me");
+                  setMe(profile);
+                  await refreshPortfolio();
+                  navigate(`/workspace/${created.id}/stage/onboarding`);
+                }, "Client workspace created. Start with the onboarding checklist.");
+                if (done) setCreating(false);
               }}
             >
               <label>
-                Name
-                <input name="name" required />
-              </label>
-              <label>
-                Email
-                <input name="email" type="email" required />
-              </label>
-              <label>
-                Initial password
+                Client / organization name
                 <input
-                  name="password"
-                  type="password"
-                  minLength={12}
+                  name="company"
                   required
+                  autoFocus
+                  placeholder="e.g. Acme Technologies"
+                  maxLength={150}
                 />
               </label>
-              <label>
-                Role
-                <select name="role">
-                  <option>client</option>
-                  <option>reviewer</option>
-                  <option>auditor</option>
-                </select>
-              </label>
-              <button disabled={busy || role !== "admin"}>
-                Create account
-              </button>
+              <div className="onboarding-preview">
+                <span className="eyebrow">INCLUDED IN THIS WORKSPACE</span>
+                <p>
+                  <Icon name="layers" size={17} />
+                  Six structured delivery stages
+                </p>
+                <p>
+                  <Icon name="file" size={17} />A private document and evidence
+                  library
+                </p>
+                <p>
+                  <Icon name="people" size={17} />
+                  Client, reviewer and auditor access
+                </p>
+                <p>
+                  <Icon name="shield" size={17} />
+                  ISO 27001 starter control register
+                </p>
+              </div>
+              <div className="form-actions">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setCreating(false)}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+                <button className="primary" disabled={busy}>
+                  Create client workspace
+                  <Icon name="arrow" size={16} />
+                </button>
+              </div>
             </form>
-            <p>
-              Share initial credentials through your approved secure channel.
-              Email invitation delivery is not configured.
-            </p>
-          </article>
-        ) : (
-          <>
-            <section className="grid">
-              <article className="card">
-                <h2>Add {page.toLowerCase().replace(/s$/, "")}</h2>
-                {role !== "auditor" && (
-                  <form onSubmit={save}>
-                    <label>
-                      Title
-                      <input name="title" required />
-                    </label>
-                    <label>
-                      Owner
-                      <input name="owner" defaultValue={me.user.name} />
-                    </label>
-                    <label>
-                      Description / evidence text
-                      <textarea name="description" />
-                    </label>
-                    {page === "Documents" && (
-                      <>
-                        <label>
-                          Document category
-                          <select name="category">
-                            <option>policy</option>
-                            <option>risk assessment</option>
-                            <option>access review</option>
-                            <option>audit report</option>
-                            <option>training evidence</option>
-                          </select>
-                        </label>
-                        <p>
-                          Register extracted text here. Or upload an original
-                          using the form above.
-                        </p>
-                      </>
-                    )}
-                    {["Risks", "Tasks", "Vendors"].includes(page) && (
-                      <label>
-                        Severity
-                        <select name="severity">
-                          <option>medium</option>
-                          <option>high</option>
-                          <option>low</option>
-                          <option>critical</option>
-                        </select>
-                      </label>
-                    )}
-                    {page === "Risks" && (
-                      <>
-                        <label>
-                          Inherent likelihood (1–5)
-                          <input
-                            type="number"
-                            min="1"
-                            max="5"
-                            name="likelihood"
-                            defaultValue="3"
-                            required
-                          />
-                        </label>
-                        <label>
-                          Inherent impact (1–5)
-                          <input
-                            type="number"
-                            min="1"
-                            max="5"
-                            name="impact"
-                            defaultValue="3"
-                            required
-                          />
-                        </label>
-                        <label>
-                          Residual likelihood (1–5)
-                          <input
-                            type="number"
-                            min="1"
-                            max="5"
-                            name="residualLikelihood"
-                            defaultValue="3"
-                            required
-                          />
-                        </label>
-                        <label>
-                          Residual impact (1–5)
-                          <input
-                            type="number"
-                            min="1"
-                            max="5"
-                            name="residualImpact"
-                            defaultValue="3"
-                            required
-                          />
-                        </label>
-                        <label>
-                          Treatment plan
-                          <textarea name="treatment" />
-                        </label>
-                      </>
-                    )}
-                    <label>
-                      Due / review date
-                      <input type="date" name="dueDate" />
-                    </label>
-                    <button disabled={busy}>Save record</button>
-                  </form>
-                )}
-              </article>
-              <article className="card">
-                <h2>{current.length} records</h2>
-                {current.length === 0 && (
-                  <p>No records yet. Add the first record to begin.</p>
-                )}
-                {current.map((r) => (
-                  <div className="record" key={r.id}>
-                    <div className="finding">
-                      <b>{r.data.title}</b>
-                      <span className="badge">
-                        {r.data.status.replaceAll("_", " ")}
-                      </span>
-                    </div>
-                    <small>
-                      {r.data.reference} · {r.data.owner}
-                    </small>
-                    <p>{r.data.description}</p>
-                    {r.kind === "risks" && (
-                      <p>
-                        Inherent: {r.data.inherentScore}/25 · Residual:{" "}
-                        {r.data.residualScore}/25 · {r.data.rating}
-                        <br />
-                        {r.data.treatment}
-                      </p>
-                    )}
-                    {r.data.note && <p>{r.data.note}</p>}
-                    {role !== "auditor" && (
-                      <>
-                        {page === "Documents" ? (
-                          <>
-                            <label>
-                              Mapped control
-                              <select
-                                value={r.data.controlId || ""}
-                                onChange={(e) =>
-                                  update(r.id, {
-                                    controlId: e.target.value || null,
-                                  })
-                                }
-                              >
-                                <option value="">Select control</option>
-                                {controls.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.data.reference} {c.data.title}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label>
-                              Reviewer note
-                              <textarea
-                                defaultValue={r.data.reviewNote}
-                                onBlur={(e) => {
-                                  if (e.target.value !== r.data.reviewNote)
-                                    update(r.id, {
-                                      reviewNote: e.target.value,
-                                    });
-                                }}
-                              />
-                            </label>
-                            {["admin", "reviewer"].includes(role) && (
-                              <div className="actions">
-                                <button
-                                  onClick={() =>
-                                    update(r.id, { status: "approved" })
-                                  }
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  className="secondary"
-                                  onClick={() =>
-                                    update(r.id, { status: "review_required" })
-                                  }
-                                >
-                                  Return for revision
-                                </button>
-                              </div>
-                            )}
-                            <small>
-                              {r.data.reviewedBy &&
-                                `Reviewed by ${r.data.reviewedBy}`}
-                            </small>
-                          </>
-                        ) : (
-                          page !== "Integrations" && (
-                            <label>
-                              Status
-                              <select
-                                value={r.data.status}
-                                onChange={(e) =>
-                                  update(r.id, { status: e.target.value })
-                                }
-                              >
-                                {[
-                                  "draft",
-                                  "not_started",
-                                  "in_progress",
-                                  "attention",
-                                  "passing",
-                                  "resolved",
-                                  "approved",
-                                ].map((s) => (
-                                  <option key={s}>{s}</option>
-                                ))}
-                              </select>
-                            </label>
-                          )
-                        )}
-                      </>
-                    )}
-                  </div>
-                ))}
-              </article>
-            </section>
-          </>
+          </Modal>
         )}
-      </main>
-    </div>
+      </div>
+    </FeedbackContext.Provider>
   );
 }
 createRoot(document.getElementById("root")).render(<App />);

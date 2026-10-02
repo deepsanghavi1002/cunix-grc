@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import { readFile } from 'node:fs/promises';
 import { pool } from './db.js';
+import { seedStages } from './stages.js';
 
 const schema = await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8');
 await pool.query(schema);
 await pool.query(await readFile(new URL('../db/service.sql', import.meta.url), 'utf8'));
+const tenants = await pool.query('SELECT id FROM tenants');
+for (const tenant of tenants.rows) await seedStages(pool, tenant.id);
 await pool.end();

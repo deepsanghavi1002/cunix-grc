@@ -1,0 +1,28 @@
+# Copy into a CLIENT repository's .github/workflows/cunix-compliance.yml.
+# Set repository variables CUNIX_URL and CUNIX_TENANT and secret CUNIX_COLLECTOR_TOKEN.
+# Copy scripts/github-collector.mjs into that client repository first.
+# A hosted runner needs a deployed, reachable HTTPS Cunix URL (not localhost).
+name: Report branch protection to Cunix
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * *'
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/github-collector.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_BRANCH: ${{ github.event.repository.default_branch }}
+          CUNIX_URL: ${{ vars.CUNIX_URL }}
+          CUNIX_TENANT: ${{ vars.CUNIX_TENANT }}
+          CUNIX_COLLECTOR_TOKEN: ${{ secrets.CUNIX_COLLECTOR_TOKEN }}

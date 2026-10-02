@@ -37,6 +37,11 @@ test("readiness requires approval, freshness, implementation and cleared remedia
     0,
   );
   document.data.expiresAt = "2026-09-29";
+  const sameDay = {
+    ...document,
+    data: { ...document.data, expiresAt: "2026-09-30" },
+  };
+  assert.equal(readiness([control, sameDay], now).ready, 1);
   assert.equal(readiness([control, document], now).expiredEvidence.length, 1);
   assert.equal(readiness([control, document], now).ready, 0);
   control.data.applicable = false;

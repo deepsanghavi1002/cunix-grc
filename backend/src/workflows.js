@@ -28,7 +28,7 @@ workflows.post(
     try {
       await db.query("BEGIN");
       const { rows } = await db.query(
-        "SELECT id,kind,data FROM service_records WHERE tenant_id=$1",
+        "SELECT id,kind,data FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
         [req.tenant],
       );
       const report = readiness(rows);
@@ -88,7 +88,7 @@ workflows.get(
   "/audits/:id/package",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT id,kind,data FROM service_records WHERE tenant_id=$1",
+      "SELECT id,kind,data FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
       [req.tenant],
     );
     const audit = rows.find(
@@ -131,7 +131,7 @@ workflows.get(
   "/readiness",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT id,kind,data FROM service_records WHERE tenant_id=$1",
+      "SELECT id,kind,data FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
       [req.tenant],
     );
     res.json(readiness(rows));
@@ -142,7 +142,7 @@ workflows.get(
   "/statement-of-applicability",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT id,kind,data FROM service_records WHERE tenant_id=$1",
+      "SELECT id,kind,data FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
       [req.tenant],
     );
     res.set(
@@ -163,7 +163,7 @@ workflows.get(
   "/records/:id/history",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT id FROM service_records WHERE id=$1 AND tenant_id=$2",
+      "SELECT id FROM service_records WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL",
       [req.params.id, req.tenant],
     );
     if (!rows.length) throw fail(404, "Record not found.");
@@ -187,7 +187,7 @@ workflows.post(
         req.tenant,
       ]);
       const { rows } = await db.query(
-        "SELECT id,kind,data FROM service_records WHERE tenant_id=$1",
+        "SELECT id,kind,data FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
         [req.tenant],
       );
       const report = readiness(rows);
@@ -243,7 +243,7 @@ workflows.post(
   "/records/:id/acknowledge",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT * FROM service_records WHERE id=$1 AND tenant_id=$2 AND kind='policies'",
+      "SELECT * FROM service_records WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL AND kind='policies'",
       [req.params.id, req.tenant],
     );
     if (!rows.length) throw fail(404, "Policy not found.");

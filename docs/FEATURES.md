@@ -1,5 +1,7 @@
 # Cunix GRC: delivery plan and functionality
 
+The [managed ISMS guide](MANAGED-ISMS.md) describes the new guided portal, complete Annex A navigation index, recurring evidence cycles, hourly metadata monitoring and GitHub collector. The table below also includes the earlier workbench capabilities.
+
 This release implements several connected compliance workflows inspired by Sprinto. It is an early service, not equivalent to Sprinto's mature integration and automation platform. No ISO certification or auditor acceptance is implied by the readiness score.
 
 ## Delivered functionality
@@ -7,16 +9,16 @@ This release implements several connected compliance workflows inspired by Sprin
 | Capability | Working behavior | Limit |
 | --- | --- | --- |
 | Client onboarding | Cunix admin creates separate workspaces, assigns client/reviewer/auditor accounts, and switches clients | Initial passwords are shared manually; no emailed invitations or recovery |
-| Scope and controls | Scope records, owner assignment, implementation status, applicability rationale and downloadable statement | 12 illustrative ISO 27001:2022 controls, not the full standard |
+| Scope and controls | Scope records, owner assignment, implementation status, applicability rationale and downloadable statement; guided activation expands the index to 93 Annex A controls and 25 management topics | Short navigation labels, not licensed normative text or an automated assessment |
 | Document processing | PDF/DOCX/text extraction, private originals, control mapping, reviewer decisions and expiry dates | Scanned documents require external OCR; extraction does not assess conformity |
 | Evidence governance | Changing approved evidence content, mapping or expiry invalidates approval; previous record versions are retained | Original uploaded files are immutable; updated files are separate evidence records |
 | Readiness | A control needs current approved evidence, confirmed implementation, and no open remediation tasks | Does not automatically verify the contents or audit period relevance |
-| Evidence monitoring | Reviewer-triggered run creates seven-day remediation tasks for gaps; repeat runs do not duplicate open requests | On demand, not a background schedule; no live cloud checks |
+| Evidence monitoring | Earlier workbench monitoring creates remediation tasks; managed ISMS also runs hourly metadata checks with persistent signals and recurring evidence requests | Metadata checks do not inspect live cloud configuration; GitHub collector is configured separately |
 | Risk assessment | Validated 1–5 inherent/residual likelihood and impact; calculated scores and ratings; treatment description | No automatic risk signals or formal acceptance approval |
 | Policy acknowledgements | Members acknowledge published policy versions; content changes create drafts requiring fresh acknowledgement | No email campaigns or employee directory sync |
 | Audit preparation | Period-scoped audit engagements generate per-control evidence requests; auditor reads packages containing evidence, history and requests | JSON package; originals downloaded individually; no auditor portal invitations |
 | Access and activity | Authenticated tenant membership, read-only auditors, reviewer-only governance, event log and revision history | No SSO/MFA; additional production hardening needed |
-| Registers | Assets, vendors, training, integrations and tasks stored per workspace | These remain basic registers, not automated provider connections or training delivery |
+| Registers | Assets, vendors, training, integrations and tasks stored per workspace; managed ISMS adds client sites and a scoped GitHub observation collector | Other integrations remain inventory records; no employee-directory sync or training delivery engine |
 | CI/CD | Backend tests, frontend build, database migration and container smoke check; immutable image publication | Production needs configured infrastructure and an enabled self-hosted runner |
 
 ## Client demonstration

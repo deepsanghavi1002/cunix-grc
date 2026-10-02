@@ -9,7 +9,10 @@ import {
 import { pool } from "./db.js";
 import { extract } from "./extract.js";
 import { workflows } from "./workflows.js";
-import { riskScores } from "./readiness.js";
+import { riskScores, readiness } from "./readiness.js";
+import { stages, seedStages, stageKey, invalidateStage } from "./stages.js";
+import { isms, programHealth } from "./isms.js";
+import { collectorIngest, collectorSettings } from "./collector.js";
 
 export const service = Router();
 const hash = (value) => createHash("sha256").update(value).digest("hex");
@@ -54,6 +57,7 @@ const baseline = [
   ["8.32", "Change management"],
 ];
 const attempts = new Map();
+service.use(collectorIngest);
 service.use((req, res, next) => {
   if (!["/login", "/register"].includes(req.path)) return next();
   const now = Date.now();
@@ -138,6 +142,7 @@ service.post(
         owner: name,
       });
       await event(db, tenant, user, "workspace.created", tenant);
+      await seedStages(db, tenant, name);
       await db.query("COMMIT");
       res
         .status(201)
@@ -245,6 +250,7 @@ service.post(
         owner: req.user.name,
       });
       await event(db, tenant, req.user.id, "workspace.created", tenant);
+      await seedStages(db, tenant, req.user.name);
       await db.query("COMMIT");
       res.status(201).json({ id: tenant });
     } catch (error) {
@@ -253,6 +259,42 @@ service.post(
     } finally {
       db.release();
     }
+  }),
+);
+service.get(
+  "/portfolio",
+  route(async (req, res) => {
+    const { rows } = await pool.query(
+      "SELECT t.id,t.name,m.role FROM tenants t JOIN service_memberships m ON t.id=m.tenant_id WHERE m.user_id=$1",
+      [req.user.id],
+    );
+    const workspaces = await Promise.all(
+      rows.map(async (workspace) => {
+        const records = await pool.query(
+          "SELECT id,kind,data,updated_at FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
+          [workspace.id],
+        );
+        const progress = await pool.query(
+          "SELECT key,status FROM service_stages WHERE tenant_id=$1",
+          [workspace.id],
+        );
+        return {
+          ...workspace,
+          program: await programHealth(workspace.id),
+          documents: records.rows.filter((row) => row.kind === "documents")
+            .length,
+          pending: records.rows.filter(
+            (row) => row.kind === "documents" && row.data.status !== "approved",
+          ).length,
+          approvedStages: progress.rows.filter(
+            (row) => row.status === "approved",
+          ).length,
+          stages: progress.rows,
+          readiness: readiness(records.rows).percentage,
+        };
+      }),
+    );
+    res.json(workspaces);
   }),
 );
 service.post(
@@ -283,13 +325,16 @@ service.get(
   "/workspaces/:tenantId/records",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT id,kind,data,created_at,updated_at FROM service_records WHERE tenant_id=$1 ORDER BY created_at DESC",
+      "SELECT id,kind,data,created_at,updated_at FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL ORDER BY created_at DESC",
       [req.tenant],
     );
     res.json(rows);
   }),
 );
 service.use("/workspaces/:tenantId", workflows);
+service.use("/workspaces/:tenantId", stages);
+service.use("/workspaces/:tenantId", isms);
+service.use("/workspaces/:tenantId", collectorSettings);
 service.get(
   "/workspaces/:tenantId/events",
   route(async (req, res) => {
@@ -304,6 +349,9 @@ service.post(
   "/workspaces/:tenantId/upload",
   route(async (req, res) => {
     const { filename, content } = req.body;
+    const documentStage = req.body.stageKey || "evidence";
+    if (!stageKey(documentStage))
+      throw fail(400, "Choose a valid document stage.");
     if (
       typeof filename !== "string" ||
       typeof content !== "string" ||
@@ -324,6 +372,8 @@ service.post(
       await db.query("BEGIN");
       const id = await record(db, req.tenant, "documents", {
         title: filename,
+        stageKey: documentStage,
+        fileSize: bytes.length,
         description: text.slice(0, 200000),
         status: "review_required",
         owner: req.user.name,
@@ -344,6 +394,7 @@ service.post(
         hash(bytes),
       ]);
       await event(db, req.tenant, req.user.id, "documents.uploaded", id);
+      await invalidateStage(db, req.tenant, documentStage, req.user.id);
       await db.query("COMMIT");
       res.status(201).json({ id });
     } catch (e) {
@@ -358,7 +409,7 @@ service.get(
   "/workspaces/:tenantId/files/:id",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT filename,content FROM service_files WHERE record_id=$1 AND tenant_id=$2",
+      "SELECT f.filename,f.content FROM service_files f JOIN service_records r ON r.id=f.record_id WHERE f.record_id=$1 AND f.tenant_id=$2 AND r.deleted_at IS NULL",
       [req.params.id, req.tenant],
     );
     if (!rows[0]) throw fail(404, "File not found.");
@@ -427,7 +478,7 @@ service.post(
     if (kind === "risks") riskScores(data);
     if (data.controlId) {
       const target = await pool.query(
-        "SELECT id FROM service_records WHERE id=$1 AND tenant_id=$2 AND kind='controls'",
+        "SELECT id FROM service_records WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL AND kind='controls'",
         [data.controlId, req.tenant],
       );
       if (!target.rows[0])
@@ -443,6 +494,9 @@ service.post(
       data.version = 1;
     }
     if (kind === "documents") {
+      data.stageKey = data.stageKey || "evidence";
+      if (!stageKey(data.stageKey))
+        throw fail(400, "Choose a valid document stage.");
       data.status = "review_required";
       data.submittedBy = req.user.name;
       data.checks = [
@@ -460,6 +514,8 @@ service.post(
       await db.query("BEGIN");
       const id = await record(db, req.tenant, kind, data);
       await event(db, req.tenant, req.user.id, `${kind}.created`, id);
+      if (kind === "documents")
+        await invalidateStage(db, req.tenant, data.stageKey, req.user.id);
       await db.query("COMMIT");
       res.status(201).json({ id, kind, data });
     } catch (e) {
@@ -477,12 +533,27 @@ service.patch(
     try {
       await db.query("BEGIN");
       const { rows } = await db.query(
-        "SELECT * FROM service_records WHERE id=$1 AND tenant_id=$2 FOR UPDATE",
+        "SELECT * FROM service_records WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL FOR UPDATE",
         [req.params.id, req.tenant],
       );
       if (!rows[0]) throw fail(404, "Record not found.");
       const previous = rows[0];
       const data = { ...previous.data, ...req.body };
+      if (
+        previous.kind === "controls" &&
+        /Clause /.test(data.reference || "") &&
+        data.applicable === false
+      )
+        throw fail(
+          400,
+          "Management-system requirements cannot be excluded through Annex A applicability.",
+        );
+      if (
+        previous.kind === "documents" &&
+        data.stageKey &&
+        !stageKey(data.stageKey)
+      )
+        throw fail(400, "Choose a valid document stage.");
       if (
         ["controls", "policies", "scope", "audits"].includes(previous.kind) &&
         !["admin", "reviewer"].includes(req.role)
@@ -515,7 +586,7 @@ service.patch(
       if (
         previous.kind === "documents" &&
         previous.data.status === "approved" &&
-        ["title", "description", "controlId", "expiresAt"].some(
+        ["title", "description", "controlId", "expiresAt", "stageKey"].some(
           (key) =>
             req.body[key] !== undefined && req.body[key] !== previous.data[key],
         )
@@ -524,6 +595,11 @@ service.patch(
         data.reviewNote = "";
       }
       if (previous.kind === "documents" && data.status === "approved") {
+        if (/\[DECISION REQUIRED\]/.test(data.description || ""))
+          throw fail(
+            400,
+            "Complete all document decision placeholders before approval.",
+          );
         if (!["admin", "reviewer"].includes(req.role))
           throw fail(403, "Reviewer approval required.");
         if (!data.reviewNote?.trim())
@@ -533,7 +609,7 @@ service.patch(
       }
       if (data.controlId) {
         const target = await db.query(
-          "SELECT id FROM service_records WHERE id=$1 AND tenant_id=$2 AND kind='controls'",
+          "SELECT id FROM service_records WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL AND kind='controls'",
           [data.controlId, req.tenant],
         );
         if (!target.rows[0])
@@ -554,6 +630,16 @@ service.patch(
         `${previous.kind}.updated`,
         previous.id,
       );
+      if (previous.kind === "documents") {
+        await invalidateStage(
+          db,
+          req.tenant,
+          previous.data.stageKey,
+          req.user.id,
+        );
+        if (data.stageKey !== previous.data.stageKey)
+          await invalidateStage(db, req.tenant, data.stageKey, req.user.id);
+      }
       await db.query("COMMIT");
       res.json({ id: previous.id, kind: previous.kind, data });
     } catch (e) {
@@ -568,7 +654,7 @@ service.get(
   "/workspaces/:tenantId/export",
   route(async (req, res) => {
     const records = await pool.query(
-      "SELECT id,kind,data,created_at,updated_at FROM service_records WHERE tenant_id=$1",
+      "SELECT id,kind,data,created_at,updated_at FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
       [req.tenant],
     );
     const events = await pool.query(

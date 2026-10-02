@@ -10,7 +10,12 @@ export function readiness(records, now = new Date()) {
         document.data.status === "approved" &&
         document.data.reviewedAt &&
         document.data.expiresAt &&
-        new Date(document.data.expiresAt) > now,
+        new Date(
+          document.data.expiresAt +
+            (/^\d{4}-\d{2}-\d{2}$/.test(document.data.expiresAt)
+              ? "T23:59:59.999Z"
+              : ""),
+        ) > now,
     );
     const blockers = tasks.filter(
       (task) =>
@@ -58,7 +63,13 @@ export function readiness(records, now = new Date()) {
       .filter(
         (item) =>
           item.data.status === "approved" &&
-          (!item.data.expiresAt || new Date(item.data.expiresAt) <= now),
+          (!item.data.expiresAt ||
+            new Date(
+              item.data.expiresAt +
+                (/^\d{4}-\d{2}-\d{2}$/.test(item.data.expiresAt)
+                  ? "T23:59:59.999Z"
+                  : ""),
+            ) <= now),
       )
       .map((item) => item.id),
     overdueTasks: tasks

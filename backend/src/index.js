@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import { service } from './service.js';
+import { startMonitor } from './isms.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -18,3 +19,4 @@ app.use((error, _req, res, _next) => {
 });
 
 app.listen(process.env.PORT || 3001, () => console.log('Cunix GRC API is listening'));
+startMonitor();

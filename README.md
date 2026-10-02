@@ -1,5 +1,7 @@
 # Cunix GRC
 
+The [managed ISMS guide](docs/MANAGED-ISMS.md) covers the guided client portal, 118-topic coverage index, personalized document drafts, recurring evidence reviews, scheduled monitoring, client site records and GitHub collector. Start at **Client workspaces → Guided ISMS & monitoring**.
+
 See the [feature checklist and execution roadmap](docs/FEATURES.md) for delivered workflows, client onboarding, demo steps and remaining production work. The [service guide](docs/SERVICE.md) describes authentication, uploads and deployment limitations. The previous unauthenticated demo APIs are disabled.
 
 Cunix GRC is a multi-tenant compliance workspace for controls, evidence and remediation. This release provides an illustrative ISO 27001:2022 starter workflow; it does not include a complete licensed framework library or certification assessment.
