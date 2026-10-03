@@ -150,183 +150,7 @@ export function ClientPortal({
         />
       </div>
       {staff && (
-        <section className="panel portal-section">
-          <div className="panel-heading">
-            <div>
-              <h2>Your ISMS journey</h2>
-              <p>
-                {portal.mode === "existing"
-                  ? "Existing ISMS: preserve the accepted baseline and continue operating."
-                  : portal.mode === "new"
-                    ? "New implementation: work through the baseline and operating cycle."
-                    : "Choose your starting point. Existing clients do not need to recreate valid documents."}
-              </p>
-            </div>
-          </div>
-          {!portal.mode && !readOnly && (
-            <div className="portal-actions">
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() =>
-                  perform(
-                    () =>
-                      api(base + "/portal/journey", "POST", { mode: "new" }),
-                    "New implementation journey started.",
-                  )
-                }
-              >
-                Start a new ISMS
-              </button>
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  perform(
-                    () =>
-                      api(base + "/portal/journey", "POST", {
-                        mode: "existing",
-                      }),
-                    "Existing ISMS journey started.",
-                  )
-                }
-              >
-                We already have an ISMS
-              </button>
-            </div>
-          )}
-          <div className="portal-journey">
-            {portal.phases.map((p, i) => {
-              const phaseTasks = tasks.filter((t) => t.data.phase === p.key),
-                done =
-                  phaseTasks.length &&
-                  phaseTasks.every((t) => t.data.status === "resolved");
-              return (
-                <button
-                  key={p.key}
-                  className="portal-phase"
-                  onClick={() => onPage(p.page)}
-                >
-                  <span>{String(i + 1).padStart(2, "0")}</span>
-                  <strong>{p.title}</strong>
-                  <small>{p.description}</small>
-                  <small>
-                    {done
-                      ? "Tasks reviewed"
-                      : phaseTasks.length
-                        ? phaseTasks.filter((t) => t.data.status !== "resolved")
-                            .length + " open actions"
-                        : "Open workspace section"}
-                  </small>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-      <section className="panel portal-section">
-        <div className="panel-heading">
-          <div>
-            <h2>{employee ? "My actions" : "Action board"}</h2>
-            <p>
-              Start work, add evidence and submit it. A separate reviewer
-              completes the task.
-            </p>
-          </div>
-          {!employee && !readOnly && (
-            <button
-              className="primary"
-              disabled={busy}
-              onClick={() => setAdding(true)}
-            >
-              Add task
-            </button>
-          )}
-        </div>
-        {!employee && (
-          <div className="portal-actions">
-            {[
-              ["open", "Open"],
-              ["mine", "Assigned to me"],
-              ["review", "For review"],
-              ["all", "All tasks"],
-            ].map(([key, title]) => (
-              <button
-                key={key}
-                className={view === key ? "primary" : "secondary"}
-                onClick={() => setView(key)}
-              >
-                {title}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="portal-task-list">
-          {shown.map((t) => (
-            <button
-              className="portal-task"
-              key={t.id}
-              onClick={() => openTask(t.id)}
-            >
-              <div>
-                <strong>{t.data.title}</strong>
-                <small>
-                  {t.data.owner || "Unassigned"} ·{" "}
-                  {t.data.dueDate || "Set a due date"}
-                  {t.data.dueDate < day() && t.data.status !== "resolved"
-                    ? " · Overdue"
-                    : ""}
-                </small>
-              </div>
-              <Badge status={t.data.status} />
-            </button>
-          ))}
-        </div>
-        {!shown.length && (
-          <Empty title="No tasks in this view">
-            Your tasks appear here when assigned.
-          </Empty>
-        )}
-      </section>
-      <section className="panel portal-section">
-        <h2>My published policies</h2>
-        <p>Read the policy before acknowledging its current version.</p>
-        <div className="portal-policies">
-          {portal.policies.map((p) => (
-            <details key={p.id}>
-              <summary>
-                {p.title} · v{p.version} ·{" "}
-                {p.acknowledged ? "Acknowledged" : "Please read"}
-              </summary>
-              <div className="portal-text">
-                {p.description ||
-                  "Ask your coordinator for the complete published policy."}
-              </div>
-              {!p.acknowledged && !readOnly && (
-                <button
-                  className="secondary"
-                  disabled={busy || !p.description}
-                  onClick={() =>
-                    perform(
-                      () =>
-                        api(
-                          base + "/records/" + p.id + "/acknowledge",
-                          "POST",
-                          {},
-                        ),
-                      "Policy version acknowledged.",
-                    )
-                  }
-                >
-                  I have read and understood this version
-                </button>
-              )}
-            </details>
-          ))}
-        </div>
-        {!portal.policies.length && <p>No published policies yet.</p>}
-      </section>
-      <section className="panel portal-section portal-guide">
+        <section className="panel portal-section portal-guide">
         <div className="panel-heading">
           <div>
             <h2>Ask your ISMS guide</h2>
@@ -618,6 +442,182 @@ export function ClientPortal({
             </form>
           </>
         )}
+      </section>
+      <section className="panel portal-section">
+          <div className="panel-heading">
+            <div>
+              <h2>Your ISMS journey</h2>
+              <p>
+                {portal.mode === "existing"
+                  ? "Existing ISMS: preserve the accepted baseline and continue operating."
+                  : portal.mode === "new"
+                    ? "New implementation: work through the baseline and operating cycle."
+                    : "Choose your starting point. Existing clients do not need to recreate valid documents."}
+              </p>
+            </div>
+          </div>
+          {!portal.mode && !readOnly && (
+            <div className="portal-actions">
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() =>
+                  perform(
+                    () =>
+                      api(base + "/portal/journey", "POST", { mode: "new" }),
+                    "New implementation journey started.",
+                  )
+                }
+              >
+                Start a new ISMS
+              </button>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() =>
+                  perform(
+                    () =>
+                      api(base + "/portal/journey", "POST", {
+                        mode: "existing",
+                      }),
+                    "Existing ISMS journey started.",
+                  )
+                }
+              >
+                We already have an ISMS
+              </button>
+            </div>
+          )}
+          <div className="portal-journey">
+            {portal.phases.map((p, i) => {
+              const phaseTasks = tasks.filter((t) => t.data.phase === p.key),
+                done =
+                  phaseTasks.length &&
+                  phaseTasks.every((t) => t.data.status === "resolved");
+              return (
+                <button
+                  key={p.key}
+                  className="portal-phase"
+                  onClick={() => onPage(p.page)}
+                >
+                  <span>{String(i + 1).padStart(2, "0")}</span>
+                  <strong>{p.title}</strong>
+                  <small>{p.description}</small>
+                  <small>
+                    {done
+                      ? "Tasks reviewed"
+                      : phaseTasks.length
+                        ? phaseTasks.filter((t) => t.data.status !== "resolved")
+                            .length + " open actions"
+                        : "Open workspace section"}
+                  </small>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      <section className="panel portal-section">
+        <div className="panel-heading">
+          <div>
+            <h2>{employee ? "My actions" : "Action board"}</h2>
+            <p>
+              Start work, add evidence and submit it. A separate reviewer
+              completes the task.
+            </p>
+          </div>
+          {!employee && !readOnly && (
+            <button
+              className="primary"
+              disabled={busy}
+              onClick={() => setAdding(true)}
+            >
+              Add task
+            </button>
+          )}
+        </div>
+        {!employee && (
+          <div className="portal-actions">
+            {[
+              ["open", "Open"],
+              ["mine", "Assigned to me"],
+              ["review", "For review"],
+              ["all", "All tasks"],
+            ].map(([key, title]) => (
+              <button
+                key={key}
+                className={view === key ? "primary" : "secondary"}
+                onClick={() => setView(key)}
+              >
+                {title}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="portal-task-list">
+          {shown.map((t) => (
+            <button
+              className="portal-task"
+              key={t.id}
+              onClick={() => openTask(t.id)}
+            >
+              <div>
+                <strong>{t.data.title}</strong>
+                <small>
+                  {t.data.owner || "Unassigned"} ·{" "}
+                  {t.data.dueDate || "Set a due date"}
+                  {t.data.dueDate < day() && t.data.status !== "resolved"
+                    ? " · Overdue"
+                    : ""}
+                </small>
+              </div>
+              <Badge status={t.data.status} />
+            </button>
+          ))}
+        </div>
+        {!shown.length && (
+          <Empty title="No tasks in this view">
+            Your tasks appear here when assigned.
+          </Empty>
+        )}
+      </section>
+      <section className="panel portal-section">
+        <h2>My published policies</h2>
+        <p>Read the policy before acknowledging its current version.</p>
+        <div className="portal-policies">
+          {portal.policies.map((p) => (
+            <details key={p.id}>
+              <summary>
+                {p.title} · v{p.version} ·{" "}
+                {p.acknowledged ? "Acknowledged" : "Please read"}
+              </summary>
+              <div className="portal-text">
+                {p.description ||
+                  "Ask your coordinator for the complete published policy."}
+              </div>
+              {!p.acknowledged && !readOnly && (
+                <button
+                  className="secondary"
+                  disabled={busy || !p.description}
+                  onClick={() =>
+                    perform(
+                      () =>
+                        api(
+                          base + "/records/" + p.id + "/acknowledge",
+                          "POST",
+                          {},
+                        ),
+                      "Policy version acknowledged.",
+                    )
+                  }
+                >
+                  I have read and understood this version
+                </button>
+              )}
+            </details>
+          ))}
+        </div>
+        {!portal.policies.length && <p>No published policies yet.</p>}
       </section>
       {adding && (
         <Modal title="Add an action" onClose={() => !busy && setAdding(false)}>
