@@ -150,7 +150,81 @@ export function ClientPortal({
         />
       </div>
       {staff && (
-        <section className="panel portal-section portal-guide">
+        <section className="panel portal-section">
+          <div className="panel-heading">
+            <div>
+              <h2>Your ISMS journey</h2>
+              <p>
+                {portal.mode === "existing"
+                  ? "Existing ISMS: preserve the accepted baseline and continue operating."
+                  : portal.mode === "new"
+                    ? "New implementation: work through the baseline and operating cycle."
+                    : "Choose your starting point. Existing clients do not need to recreate valid documents."}
+              </p>
+            </div>
+          </div>
+          {!portal.mode && !readOnly && (
+            <div className="portal-actions">
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() =>
+                  perform(
+                    () =>
+                      api(base + "/portal/journey", "POST", { mode: "new" }),
+                    "New implementation journey started.",
+                  )
+                }
+              >
+                Start a new ISMS
+              </button>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() =>
+                  perform(
+                    () =>
+                      api(base + "/portal/journey", "POST", {
+                        mode: "existing",
+                      }),
+                    "Existing ISMS journey started.",
+                  )
+                }
+              >
+                We already have an ISMS
+              </button>
+            </div>
+          )}
+          <div className="portal-journey">
+            {portal.phases.map((p, i) => {
+              const phaseTasks = tasks.filter((t) => t.data.phase === p.key),
+                done =
+                  phaseTasks.length &&
+                  phaseTasks.every((t) => t.data.status === "resolved");
+              return (
+                <button
+                  key={p.key}
+                  className="portal-phase"
+                  onClick={() => onPage(p.page)}
+                >
+                  <span>{String(i + 1).padStart(2, "0")}</span>
+                  <strong>{p.title}</strong>
+                  <small>{p.description}</small>
+                  <small>
+                    {done
+                      ? "Tasks reviewed"
+                      : phaseTasks.length
+                        ? phaseTasks.filter((t) => t.data.status !== "resolved")
+                            .length + " open actions"
+                        : "Open workspace section"}
+                  </small>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      <section className="panel portal-section portal-guide">
         <div className="panel-heading">
           <div>
             <h2>Ask your ISMS guide</h2>
@@ -443,80 +517,6 @@ export function ClientPortal({
           </>
         )}
       </section>
-      <section className="panel portal-section">
-          <div className="panel-heading">
-            <div>
-              <h2>Your ISMS journey</h2>
-              <p>
-                {portal.mode === "existing"
-                  ? "Existing ISMS: preserve the accepted baseline and continue operating."
-                  : portal.mode === "new"
-                    ? "New implementation: work through the baseline and operating cycle."
-                    : "Choose your starting point. Existing clients do not need to recreate valid documents."}
-              </p>
-            </div>
-          </div>
-          {!portal.mode && !readOnly && (
-            <div className="portal-actions">
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={() =>
-                  perform(
-                    () =>
-                      api(base + "/portal/journey", "POST", { mode: "new" }),
-                    "New implementation journey started.",
-                  )
-                }
-              >
-                Start a new ISMS
-              </button>
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  perform(
-                    () =>
-                      api(base + "/portal/journey", "POST", {
-                        mode: "existing",
-                      }),
-                    "Existing ISMS journey started.",
-                  )
-                }
-              >
-                We already have an ISMS
-              </button>
-            </div>
-          )}
-          <div className="portal-journey">
-            {portal.phases.map((p, i) => {
-              const phaseTasks = tasks.filter((t) => t.data.phase === p.key),
-                done =
-                  phaseTasks.length &&
-                  phaseTasks.every((t) => t.data.status === "resolved");
-              return (
-                <button
-                  key={p.key}
-                  className="portal-phase"
-                  onClick={() => onPage(p.page)}
-                >
-                  <span>{String(i + 1).padStart(2, "0")}</span>
-                  <strong>{p.title}</strong>
-                  <small>{p.description}</small>
-                  <small>
-                    {done
-                      ? "Tasks reviewed"
-                      : phaseTasks.length
-                        ? phaseTasks.filter((t) => t.data.status !== "resolved")
-                            .length + " open actions"
-                        : "Open workspace section"}
-                  </small>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
       <section className="panel portal-section">
         <div className="panel-heading">
           <div>
