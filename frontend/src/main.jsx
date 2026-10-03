@@ -14,6 +14,7 @@ import { Pipeline, StageDetail, RecordsPanel, Team } from "./Workspace.jsx";
 import { Documents } from "./Documents.jsx";
 import { ComplianceWorkbench } from "./ComplianceWorkbench.jsx";
 import { ISMS, AttentionQueue } from "./ISMS.jsx";
+import { ClientPortal } from "./ClientPortal.jsx";
 import "./styles.css";
 import "./isms.css";
 
@@ -42,11 +43,18 @@ function useRoute() {
   const parts = hash.replace(/^#\/?/, "").split("/");
   return {
     workspaceId: parts[0] === "workspace" ? parts[1] : "",
-    page: parts[0] === "workspace" ? parts[2] || "pipeline" : "clients",
+    clientSlug: parts[0] === "client" ? parts[1] : "",
+    page:
+      parts[0] === "client"
+        ? "home"
+        : parts[0] === "workspace"
+          ? parts[2] || "home"
+          : "clients",
     detail: parts[3] || "",
   };
 }
 const navigation = [
+  ["home", "check", "Client home & guide"],
   ["isms", "shield", "Guided ISMS & monitoring"],
   ["pipeline", "layers", "Engagement timeline"],
   ["documents", "file", "Document library"],
@@ -60,11 +68,15 @@ const navigation = [
 function Login({ onLogin, error, busy }) {
   const [register, setRegister] = useState(false);
   const [centralLogin, setCentralLogin] = useState(false);
+  const [selfRegistration, setSelfRegistration] = useState(false);
   useEffect(() => {
     let mounted = true;
     api("/auth-config")
       .then((config) => {
-        if (mounted) setCentralLogin(config.centralLogin);
+        if (mounted) {
+          setCentralLogin(config.centralLogin);
+          setSelfRegistration(config.selfRegistrationAllowed);
+        }
       })
       .catch(() => {});
     return () => {
@@ -149,7 +161,7 @@ function Login({ onLogin, error, busy }) {
               >
                 Sign in with CUNIX Inspire
               </button>
-              <p className="muted">Emergency local sign-in</p>
+              <p className="muted">Email sign-in</p>
             </>
           )}
           {register && (
@@ -186,15 +198,17 @@ function Login({ onLogin, error, busy }) {
                 : "Open workspace"}
             <Icon name="arrow" size={17} />
           </button>
-          <button
-            type="button"
-            className="text-button login-switch"
-            onClick={() => setRegister(!register)}
-          >
-            {register
-              ? "Already have an account? Sign in"
-              : "New here? Create an organization"}
-          </button>
+          {selfRegistration && (
+            <button
+              type="button"
+              className="text-button login-switch"
+              onClick={() => setRegister(!register)}
+            >
+              {register
+                ? "Already have an account? Sign in"
+                : "New here? Create an organization"}
+            </button>
+          )}
         </form>
         <p className="login-footnote">
           Cunix GRC · Organized evidence. Clear ownership.
@@ -216,25 +230,36 @@ function App() {
     [creating, setCreating] = useState(false),
     [mobile, setMobile] = useState(false),
     [search, setSearch] = useState("");
+  const userProfile = useRef(me);
+  userProfile.current = me;
   const activeWorkspace = useRef(route.workspaceId);
   activeWorkspace.current = route.workspaceId;
   const requestVersion = useRef(0);
   const workspace = me?.workspaces.find(
-    (item) => item.id === route.workspaceId,
+    (item) =>
+      item.id === route.workspaceId ||
+      (route.clientSlug && item.slug === route.clientSlug),
   );
+  activeWorkspace.current = workspace?.id || route.workspaceId;
   const base = workspace ? `/workspaces/${workspace.id}` : "";
   const loadWorkspace = useCallback(async (id, signal) => {
     const version = ++requestVersion.current;
-    const paths = [
-      "records",
-      "stages",
-      "events",
-      "members",
-      "readiness",
-      "trash",
-      "isms",
-      "isms/collector",
-    ];
+    const employee =
+      userProfile.current?.workspaces.find((w) => w.id === id)?.role ===
+      "employee";
+    const paths = employee
+      ? ["portal"]
+      : [
+          "portal",
+          "records",
+          "stages",
+          "events",
+          "members",
+          "readiness",
+          "trash",
+          "isms",
+          "isms/collector",
+        ];
     const results = await Promise.all(
       paths.map((path) =>
         api(`/workspaces/${id}/${path}`, "GET", undefined, signal),
@@ -243,11 +268,26 @@ function App() {
     if (activeWorkspace.current === id && requestVersion.current === version)
       setData({
         id,
+        records: [],
+        stages: [],
+        events: [],
+        members: [],
+        trash: [],
         ...Object.fromEntries(
           paths.map((path, index) => [path, results[index]]),
         ),
       });
   }, []);
+  useEffect(() => {
+    if (
+      me &&
+      !route.workspaceId &&
+      !route.clientSlug &&
+      me.workspaces.length === 1 &&
+      ["client", "employee"].includes(me.workspaces[0].role)
+    )
+      navigate(`/workspace/${me.workspaces[0].id}/home`);
+  }, [me, route.workspaceId, route.clientSlug]);
   const refreshPortfolio = useCallback(
     async () => setPortfolio(await api("/portfolio")),
     [],
@@ -398,7 +438,7 @@ function App() {
               setMobile(false);
               navigate(
                 event.target.value
-                  ? `/workspace/${event.target.value}/isms`
+                  ? `/workspace/${event.target.value}/home`
                   : "/clients",
               );
             }}
@@ -412,32 +452,38 @@ function App() {
           </select>
           <nav>
             {workspace ? (
-              navigation.map(([page, icon, text]) => (
-                <button
-                  key={page}
-                  className={`nav-link ${route.page === page || (page === "pipeline" && route.page === "stage") ? "selected" : ""}`}
-                  onClick={() => toPage(page)}
-                >
-                  <Icon name={icon} />
-                  {text}
-                  {page === "reviews" &&
-                    currentData?.records.filter(
-                      (item) =>
-                        item.kind === "documents" && !item.data.referenceOnly &&
-                        item.data.status !== "approved",
-                    ).length > 0 && (
-                      <span className="nav-count">
-                        {
-                          currentData.records.filter(
-                            (item) =>
-                              item.kind === "documents" && !item.data.referenceOnly &&
-                              item.data.status !== "approved",
-                          ).length
-                        }
-                      </span>
-                    )}
-                </button>
-              ))
+              navigation
+                .filter(
+                  ([page]) => workspace.role !== "employee" || page === "home",
+                )
+                .map(([page, icon, text]) => (
+                  <button
+                    key={page}
+                    className={`nav-link ${route.page === page || (page === "pipeline" && route.page === "stage") ? "selected" : ""}`}
+                    onClick={() => toPage(page)}
+                  >
+                    <Icon name={icon} />
+                    {text}
+                    {page === "reviews" &&
+                      currentData?.records.filter(
+                        (item) =>
+                          item.kind === "documents" &&
+                          !item.data.referenceOnly &&
+                          item.data.status !== "approved",
+                      ).length > 0 && (
+                        <span className="nav-count">
+                          {
+                            currentData.records.filter(
+                              (item) =>
+                                item.kind === "documents" &&
+                                !item.data.referenceOnly &&
+                                item.data.status !== "approved",
+                            ).length
+                          }
+                        </span>
+                      )}
+                  </button>
+                ))
             ) : (
               <div className="sidebar-help">
                 <Icon name="layers" size={25} />
@@ -504,7 +550,16 @@ function App() {
             </span>
           </div>
           <main className="page-content">
-            {currentData?.isms?.program?.profile?.sample && <div className="panel sample-notice"><strong>Fictional sample workspace</strong><p>Records, decisions and readiness figures demonstrate workflows. They do not describe a real client or establish certification readiness.</p></div>}
+            {currentData?.isms?.program?.profile?.sample && (
+              <div className="panel sample-notice">
+                <strong>Fictional sample workspace</strong>
+                <p>
+                  Records, decisions and readiness figures demonstrate
+                  workflows. They do not describe a real client or establish
+                  certification readiness.
+                </p>
+              </div>
+            )}
             {error && (
               <div className="error-banner" role="alert">
                 <Icon name="alert" size={18} />
@@ -680,7 +735,7 @@ function App() {
                       </div>
                       <a
                         className="client-card-link"
-                        href={`#/workspace/${item.id}/isms`}
+                        href={`#/workspace/${item.id}/home`}
                       >
                         Open workspace
                         <Icon name="arrow" size={17} />
@@ -713,181 +768,192 @@ function App() {
               </div>
             ) : (
               <>
-                {route.page === "isms" && (
-                  <ISMS key={workspace.id} {...props} onPage={toPage} />
+                {(route.page === "home" || workspace.role === "employee") && (
+                  <ClientPortal key={workspace.id} {...props} onPage={toPage} />
                 )}
-                {route.page === "pipeline" && (
-                  <Pipeline
-                    {...props}
-                    onStage={(key) => toPage("stage", key)}
-                    onDocuments={() => toPage("documents")}
-                  />
-                )}
-                {route.page === "stage" &&
-                  (currentStage ? (
-                    <StageDetail
-                      key={workspace.id + currentStage.key}
-                      {...props}
-                      stage={currentStage}
-                      onBack={() => toPage("pipeline")}
-                      onPage={toPage}
-                    />
-                  ) : (
-                    <Empty
-                      title="Stage not found"
-                      action={
-                        <button
-                          className="secondary"
-                          onClick={() => toPage("pipeline")}
-                        >
-                          Back to timeline
-                        </button>
-                      }
-                    >
-                      Choose a stage from this client’s engagement timeline.
-                    </Empty>
-                  ))}
-                {["documents", "reviews"].includes(route.page) && (
+                {workspace.role !== "employee" && (
                   <>
-                    <PageHeading
-                      eyebrow={workspace.name}
-                      title={
-                        route.page === "reviews"
-                          ? "Review workspace"
-                          : "Document library"
-                      }
-                      description={
-                        route.page === "reviews"
-                          ? "Review submitted evidence, record your decision and keep delivery moving."
-                          : "Upload, organize and review the documents behind this client’s engagement."
-                      }
-                    />
-                    <Documents
-                      key={workspace.id + route.page}
-                      {...props}
-                      reviewOnly={route.page === "reviews"}
-                    />
-                  </>
-                )}
-                {route.page === "registers" && (
-                  <>
-                    <PageHeading
-                      eyebrow={workspace.name}
-                      title="Compliance registers"
-                      description="Keep client controls, policies, risks and responsibilities organized."
-                    />
-                    <div className="register-tabs">
-                      {[
-                        "controls",
-                        "scope",
-                        "policies",
-                        "risks",
-                        "tasks",
-                        "assets",
-                        "vendors",
-                        "training",
-                        "integrations",
-                      ].map((kind) => (
-                        <button
-                          key={kind}
-                          className={
-                            (route.detail || "controls") === kind
-                              ? "active"
-                              : ""
+                    {route.page === "isms" && (
+                      <ISMS key={workspace.id} {...props} onPage={toPage} />
+                    )}
+                    {route.page === "pipeline" && (
+                      <Pipeline
+                        {...props}
+                        onStage={(key) => toPage("stage", key)}
+                        onDocuments={() => toPage("documents")}
+                      />
+                    )}
+                    {route.page === "stage" &&
+                      (currentStage ? (
+                        <StageDetail
+                          key={workspace.id + currentStage.key}
+                          {...props}
+                          stage={currentStage}
+                          onBack={() => toPage("pipeline")}
+                          onPage={toPage}
+                        />
+                      ) : (
+                        <Empty
+                          title="Stage not found"
+                          action={
+                            <button
+                              className="secondary"
+                              onClick={() => toPage("pipeline")}
+                            >
+                              Back to timeline
+                            </button>
                           }
-                          onClick={() => toPage("registers", kind)}
                         >
-                          {kind === "scope" ? "ISMS scope" : kind}
-                        </button>
+                          Choose a stage from this client’s engagement timeline.
+                        </Empty>
                       ))}
-                    </div>
-                    <RecordsPanel
-                      key={workspace.id + route.detail}
-                      {...props}
-                      kind={
-                        [
-                          "controls",
-                          "scope",
-                          "policies",
-                          "risks",
-                          "tasks",
-                          "assets",
-                          "vendors",
-                          "training",
-                          "integrations",
-                        ].includes(route.detail)
-                          ? route.detail
-                          : "controls"
-                      }
-                    />
-                  </>
-                )}
-                {route.page === "team" && (
-                  <Team key={workspace.id} {...props} />
-                )}
-                {route.page === "readiness" && (
-                  <>
-                    <PageHeading
-                      eyebrow={workspace.name}
-                      title="Readiness & audit preparation"
-                      description="Review evidence freshness, coordinate audit requests and prepare the client handover."
-                    />
-                    <ComplianceWorkbench
-                      key={workspace.id}
-                      base={base}
-                      role={workspace.role}
-                      api={api}
-                      records={currentData.records}
-                      refresh={refresh}
-                      run={perform}
-                    />
-                  </>
-                )}
-                {route.page === "activity" && (
-                  <>
-                    <PageHeading
-                      eyebrow={workspace.name}
-                      title="Activity log"
-                      description="A clear record of document changes, delivery progress and review decisions."
-                      actions={
-                        <a
-                          className="secondary"
-                          href={"/api/service" + base + "/export"}
-                        >
-                          <Icon name="download" size={16} />
-                          Export audit register
-                        </a>
-                      }
-                    />
-                    <section className="panel">
-                      <div className="activity-list">
-                        {currentData.events.map((event) => (
-                          <article key={event.id}>
-                            <span className="activity-dot">
-                              <Icon
-                                name={
-                                  event.action.startsWith("stage")
-                                    ? "layers"
-                                    : "file"
-                                }
-                                size={16}
-                              />
-                            </span>
-                            <div>
-                              <h3>
-                                {event.action
-                                  .replaceAll(".", " · ")
-                                  .replaceAll("_", " ")}
-                              </h3>
-                              <p>{event.actor}</p>
-                            </div>
-                            <time>
-                              {new Date(event.created_at).toLocaleString()}
-                            </time>
-                          </article>
-                        ))}
-                      </div>
-                    </section>
+                    {["documents", "reviews"].includes(route.page) && (
+                      <>
+                        <PageHeading
+                          eyebrow={workspace.name}
+                          title={
+                            route.page === "reviews"
+                              ? "Review workspace"
+                              : "Document library"
+                          }
+                          description={
+                            route.page === "reviews"
+                              ? "Review submitted evidence, record your decision and keep delivery moving."
+                              : "Upload, organize and review the documents behind this client’s engagement."
+                          }
+                        />
+                        <Documents
+                          key={workspace.id + route.page}
+                          {...props}
+                          reviewOnly={route.page === "reviews"}
+                        />
+                      </>
+                    )}
+                    {route.page === "registers" && (
+                      <>
+                        <PageHeading
+                          eyebrow={workspace.name}
+                          title="Compliance registers"
+                          description="Keep client controls, policies, risks and responsibilities organized."
+                        />
+                        <div className="register-tabs">
+                          {[
+                            "controls",
+                            "scope",
+                            "policies",
+                            "risks",
+                            "tasks",
+                            "assets",
+                            "vendors",
+                            "training",
+                            "integrations",
+                          ].map((kind) => (
+                            <button
+                              key={kind}
+                              className={
+                                (route.detail || "controls") === kind
+                                  ? "active"
+                                  : ""
+                              }
+                              onClick={() =>
+                                kind === "tasks"
+                                  ? toPage("home")
+                                  : toPage("registers", kind)
+                              }
+                            >
+                              {kind === "scope" ? "ISMS scope" : kind}
+                            </button>
+                          ))}
+                        </div>
+                        <RecordsPanel
+                          key={workspace.id + route.detail}
+                          {...props}
+                          kind={
+                            [
+                              "controls",
+                              "scope",
+                              "policies",
+                              "risks",
+                              "tasks",
+                              "assets",
+                              "vendors",
+                              "training",
+                              "integrations",
+                            ].includes(route.detail)
+                              ? route.detail
+                              : "controls"
+                          }
+                        />
+                      </>
+                    )}
+                    {route.page === "team" && (
+                      <Team key={workspace.id} {...props} />
+                    )}
+                    {route.page === "readiness" && (
+                      <>
+                        <PageHeading
+                          eyebrow={workspace.name}
+                          title="Readiness & audit preparation"
+                          description="Review evidence freshness, coordinate audit requests and prepare the client handover."
+                        />
+                        <ComplianceWorkbench
+                          key={workspace.id}
+                          base={base}
+                          role={workspace.role}
+                          api={api}
+                          records={currentData.records}
+                          refresh={refresh}
+                          run={perform}
+                        />
+                      </>
+                    )}
+                    {route.page === "activity" && (
+                      <>
+                        <PageHeading
+                          eyebrow={workspace.name}
+                          title="Activity log"
+                          description="A clear record of document changes, delivery progress and review decisions."
+                          actions={
+                            <a
+                              className="secondary"
+                              href={"/api/service" + base + "/export"}
+                            >
+                              <Icon name="download" size={16} />
+                              Export audit register
+                            </a>
+                          }
+                        />
+                        <section className="panel">
+                          <div className="activity-list">
+                            {currentData.events.map((event) => (
+                              <article key={event.id}>
+                                <span className="activity-dot">
+                                  <Icon
+                                    name={
+                                      event.action.startsWith("stage")
+                                        ? "layers"
+                                        : "file"
+                                    }
+                                    size={16}
+                                  />
+                                </span>
+                                <div>
+                                  <h3>
+                                    {event.action
+                                      .replaceAll(".", " · ")
+                                      .replaceAll("_", " ")}
+                                  </h3>
+                                  <p>{event.actor}</p>
+                                </div>
+                                <time>
+                                  {new Date(event.created_at).toLocaleString()}
+                                </time>
+                              </article>
+                            ))}
+                          </div>
+                        </section>
+                      </>
+                    )}
                   </>
                 )}
               </>
@@ -916,8 +982,13 @@ function App() {
                   const profile = await api("/me");
                   setMe(profile);
                   await refreshPortfolio();
-                  navigate(`/workspace/${created.id}/stage/onboarding`);
-                }, "Client workspace created. Start with the onboarding checklist.");
+                  await api(
+                    `/workspaces/${created.id}/isms/activate`,
+                    "POST",
+                    {},
+                  );
+                  navigate(`/workspace/${created.id}/home`);
+                }, "Client workspace created. Choose a new implementation or an existing ISMS.");
                 if (done) setCreating(false);
               }}
             >
@@ -947,7 +1018,7 @@ function App() {
                 </p>
                 <p>
                   <Icon name="shield" size={17} />
-                  ISO 27001 starter control register
+                  Complete ISO 27001 control index
                 </p>
               </div>
               <div className="form-actions">

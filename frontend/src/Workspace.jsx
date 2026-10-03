@@ -792,7 +792,8 @@ export function Team({ workspace, members, role, api, perform, busy }) {
         {[
           ["admin", "Manage the workspace and client access."],
           ["reviewer", "Review documents and approve delivery stages."],
-          ["client", "Upload documents and complete stage work."],
+          ["client", "Coordinate client tasks, records and evidence."],
+          ["employee", "Access only assigned tasks and published policies."],
           ["auditor", "Inspect evidence with read-only access."],
         ].map(([name, description]) => (
           <article className="panel" key={name}>
@@ -835,6 +836,7 @@ export function Team({ workspace, members, role, api, perform, busy }) {
               <select name="role">
                 <option value="client">Client</option>
                 <option value="reviewer">Reviewer</option>
+                <option value="employee">Employee</option>
                 <option value="auditor">Auditor · read only</option>
               </select>
             </label>

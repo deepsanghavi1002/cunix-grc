@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { portal } from "./portal.js";
 import {
   randomUUID,
   randomBytes,
@@ -92,6 +93,7 @@ async function event(db, tenant, actor, action, id) {
 service.post(
   "/register",
   route(async (req, res) => {
+    if (process.env.NODE_ENV === "production" && process.env.ALLOW_SELF_REGISTRATION !== "true") throw fail(403,"Ask CUNIX to create your client workspace and account.");
     const { email, password, name, company } = req.body;
     if (
       typeof email !== "string" ||
@@ -185,7 +187,7 @@ service.post(
   }),
 );
 service.get("/auth-config", (_req, res) =>
-  res.json({ centralLogin: Boolean(process.env.OIDC_CLIENT_SECRET) }),
+  res.json({ centralLogin: Boolean(process.env.OIDC_CLIENT_SECRET), selfRegistrationAllowed:process.env.NODE_ENV !== "production" || process.env.ALLOW_SELF_REGISTRATION === "true" }),
 );
 service.use(
   "/oidc",
@@ -255,7 +257,7 @@ service.get(
   "/me",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT t.id,t.name,m.role FROM tenants t JOIN service_memberships m ON t.id=m.tenant_id WHERE m.user_id=$1",
+      "SELECT t.id,t.name,t.slug,m.role FROM tenants t JOIN service_memberships m ON t.id=m.tenant_id WHERE m.user_id=$1",
       [req.user.id],
     );
     res.json({ user: req.user, workspaces: rows });
@@ -279,7 +281,7 @@ service.post(
       await db.query("INSERT INTO tenants(id,name,slug) VALUES($1,$2,$3)", [
         tenant,
         req.body.company.trim(),
-        tenant,
+        (req.body.company.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,45)||"client")+"-"+tenant.slice(0,6),
       ]);
       await db.query("INSERT INTO service_memberships VALUES($1,$2,$3)", [
         req.user.id,
@@ -317,11 +319,12 @@ service.get(
   "/portfolio",
   route(async (req, res) => {
     const { rows } = await pool.query(
-      "SELECT t.id,t.name,m.role FROM tenants t JOIN service_memberships m ON t.id=m.tenant_id WHERE m.user_id=$1",
+      "SELECT t.id,t.name,t.slug,m.role FROM tenants t JOIN service_memberships m ON t.id=m.tenant_id WHERE m.user_id=$1",
       [req.user.id],
     );
     const workspaces = await Promise.all(
       rows.map(async (workspace) => {
+        if (workspace.role === "employee") return {...workspace,documents:0,pending:0,approvedStages:0,stages:[],readiness:null,program:null};
         const records = await pool.query(
           "SELECT id,kind,data,updated_at FROM service_records WHERE tenant_id=$1 AND deleted_at IS NULL",
           [workspace.id],
@@ -368,6 +371,7 @@ service.use("/workspaces/:tenantId", (req, res, next) => {
     if (!rows[0]) throw fail(403, "Workspace access denied.");
     req.tenant = req.params.tenantId;
     req.role = rows[0].role;
+    if (req.role === "employee" && !(/^\/portal(?:\/|$)/.test(req.path) || (req.method === "POST" && /^\/records\/[0-9a-f-]+\/acknowledge$/.test(req.path)))) throw fail(403, "Employees can access only their assigned tasks and published policies.");
     if (req.method !== "GET" && req.role === "auditor")
       throw fail(403, "Auditors have read-only access.");
     next();
@@ -383,6 +387,7 @@ service.get(
     res.json(rows);
   }),
 );
+service.use("/workspaces/:tenantId", portal);
 service.use("/workspaces/:tenantId", workflows);
 service.use("/workspaces/:tenantId", stages);
 service.use("/workspaces/:tenantId", isms);
@@ -479,7 +484,7 @@ service.post(
     if (req.role !== "admin") throw fail(403, "Administrator access required.");
     const { email, password, name, role } = req.body;
     if (
-      !["reviewer", "client", "auditor"].includes(role) ||
+      !["reviewer", "client", "employee", "auditor"].includes(role) ||
       typeof password !== "string" ||
       password.length < 12 ||
       !name ||
@@ -522,6 +527,7 @@ service.post(
   route(async (req, res) => {
     const { kind } = req.params;
     if (!kinds.includes(kind)) throw fail(400, "Unknown module.");
+    if (kind === "tasks") throw fail(409,"Use Client home to create assigned, reviewable tasks.");
     const data = req.body;
     if (typeof data.title !== "string" || !data.title.trim())
       throw fail(400, "Title required.");
@@ -590,6 +596,7 @@ service.patch(
       );
       if (!rows[0]) throw fail(404, "Record not found.");
       const previous = rows[0];
+      if(previous.kind === "tasks") throw fail(409,"Use Client home to update this task and preserve its review workflow.");
       if(previous.data.referenceOnly)throw fail(403,"Reference originals are read-only. Create a working draft instead.");
       const data = { ...previous.data, ...req.body };
       if (

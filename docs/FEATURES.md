@@ -17,7 +17,7 @@ This release implements several connected compliance workflows inspired by Sprin
 | Risk assessment | Validated 1–5 inherent/residual likelihood and impact; calculated scores and ratings; treatment description | No automatic risk signals or formal acceptance approval |
 | Policy acknowledgements | Members acknowledge published policy versions; content changes create drafts requiring fresh acknowledgement | No email campaigns or employee directory sync |
 | Audit preparation | Period-scoped audit engagements generate per-control evidence requests; auditor reads packages containing evidence, history and requests | JSON package; originals downloaded individually; no auditor portal invitations |
-| Access and activity | Authenticated tenant membership, read-only auditors, reviewer-only governance, event log and revision history | No SSO/MFA; additional production hardening needed |
+| Access and activity | Authenticated tenant membership, read-only auditors, reviewer-only governance, event log and revision history | Central OIDC available; client-specific IdP/MFA administration and additional production hardening remain |
 | Registers | Assets, vendors, training, integrations and tasks stored per workspace; managed ISMS adds client sites and a scoped GitHub observation collector | Other integrations remain inventory records; no employee-directory sync or training delivery engine |
 | CI/CD | Backend tests, frontend build, database migration and container smoke check; immutable image publication | Production needs configured infrastructure and an enabled self-hosted runner |
 
@@ -48,4 +48,8 @@ This release implements several connected compliance workflows inspired by Sprin
 
 ## Verification
 
-Automated tests cover tenant isolation, reviewer permissions, approval invalidation, evidence freshness, open-task blocking, monitoring deduplication, applicability rationale, version-specific acknowledgement, risk bounds, audit packages and additional-client creation. Frontend production build is checked. A production deployment and full browser acceptance test are not established by those checks.
+Automated tests cover tenant isolation, reviewer permissions, approval invalidation, evidence freshness, open-task blocking, monitoring deduplication, applicability rationale, version-specific acknowledgement, risk bounds, audit packages and additional-client creation. Frontend production build is checked. CI now includes client/employee browser flows and real PostgreSQL tests. Current release verification and its limits are recorded in CLIENT-PORTAL.md.
+
+## Client portal increment
+
+See [CLIENT-PORTAL.md](CLIENT-PORTAL.md): new/existing journey selection, restricted employee role, named-owner task board, file submission and independent review, discussion, policy acknowledgements, scoped Fireworks/DeepSeek guidance, proposed task creation/updates and guarded undo. Task editing uses Client home so generic record edits cannot bypass the review workflow. External notifications and broad technical connectors remain separate work.

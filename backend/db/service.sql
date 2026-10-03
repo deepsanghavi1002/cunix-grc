@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS service_users (id UUID PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, name TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS service_memberships (user_id UUID REFERENCES service_users(id), tenant_id UUID REFERENCES tenants(id), role TEXT NOT NULL CHECK(role IN ('admin','reviewer','client','auditor')), PRIMARY KEY(user_id,tenant_id));
+CREATE TABLE IF NOT EXISTS service_memberships (user_id UUID REFERENCES service_users(id), tenant_id UUID REFERENCES tenants(id), role TEXT NOT NULL CONSTRAINT service_memberships_role_check CHECK(role IN ('admin','reviewer','client','employee','auditor')), PRIMARY KEY(user_id,tenant_id));
 CREATE TABLE IF NOT EXISTS service_sessions (token_hash TEXT PRIMARY KEY, user_id UUID REFERENCES service_users(id), expires_at TIMESTAMPTZ NOT NULL);
 CREATE TABLE IF NOT EXISTS service_records (id UUID PRIMARY KEY, tenant_id UUID NOT NULL REFERENCES tenants(id), kind TEXT NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS service_records_tenant ON service_records(tenant_id,kind);
@@ -76,4 +76,18 @@ CREATE TABLE IF NOT EXISTS service_observations (
   key TEXT NOT NULL,
   data JSONB NOT NULL,
   PRIMARY KEY(tenant_id,key)
+);
+
+-- Employees have an explicitly restricted API surface; existing memberships remain unchanged.
+ALTER TABLE service_memberships DROP CONSTRAINT IF EXISTS service_memberships_role_check;
+ALTER TABLE service_memberships ADD CONSTRAINT service_memberships_role_check CHECK(role IN ('admin','reviewer','client','employee','auditor'));
+CREATE TABLE IF NOT EXISTS service_guide_turns (
+ id UUID PRIMARY KEY, tenant_id UUID NOT NULL REFERENCES tenants(id), user_id UUID NOT NULL REFERENCES service_users(id),
+ request_id UUID NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ UNIQUE(tenant_id,user_id,request_id)
+);
+CREATE INDEX IF NOT EXISTS service_guide_tenant ON service_guide_turns(tenant_id,user_id,created_at);
+CREATE TABLE IF NOT EXISTS service_task_comments (
+ id UUID PRIMARY KEY, tenant_id UUID NOT NULL REFERENCES tenants(id), task_id UUID NOT NULL REFERENCES service_records(id),
+ actor_id UUID NOT NULL REFERENCES service_users(id), body TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

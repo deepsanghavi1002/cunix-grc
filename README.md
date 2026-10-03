@@ -1,3 +1,7 @@
+# Client portal and AI journey guide
+
+See [the client portal walkthrough](docs/CLIENT-PORTAL.md) for new/existing journeys, restricted employee access, task review and Fireworks/DeepSeek guidance.
+
 The [working-release sample guide](docs/SAMPLE-CLIENT.md) describes Northstar Digital, its broad ISMS scope, private reference library and team walkthrough.
 
 # Cunix GRC
