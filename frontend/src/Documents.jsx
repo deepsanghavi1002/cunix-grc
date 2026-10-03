@@ -38,11 +38,11 @@ export function Documents({
   const all =
     tab === "trash"
       ? trash
-      : records.filter((item) => item.kind === "documents");
+      : records.filter((item) => item.kind === "documents" && (tab === "references" ? item.data.referenceOnly : !item.data.referenceOnly));
   const documents = all.filter(
     (item) =>
       (!stageKey || (item.data.stageKey || "evidence") === stageKey) &&
-      (!reviewOnly || item.data.status !== "approved") &&
+      (!reviewOnly || (!item.data.referenceOnly && item.data.status !== "approved")) &&
       (status === "all" || item.data.status === status) &&
       `${item.data.title} ${item.data.owner || ""}`
         .toLowerCase()
@@ -99,8 +99,9 @@ export function Documents({
             className={tab === "active" ? "active" : ""}
             onClick={() => setTab("active")}
           >
-            Active documents
+            Working documents
           </button>
+          <button className={tab === "references" ? "active" : ""} onClick={()=>{setTab("references");setStatus("all");}}>Reference templates <span>{records.filter(r=>r.kind==='documents'&&r.data.referenceOnly).length}</span></button>
           <button
             className={tab === "trash" ? "active" : ""}
             onClick={() => setTab("trash")}
@@ -316,12 +317,12 @@ export function Documents({
             >
               <Icon name="upload" size={30} />
               <strong>Choose files or drag them here</strong>
-              <span>PDF, DOCX, TXT, Markdown or CSV · 5 MB per file</span>
+              <span>PDF, DOCX, XLSX, TXT, Markdown or CSV · 5 MB per file</span>
               <input
                 type="file"
                 aria-label="Choose documents"
                 multiple
-                accept=".pdf,.docx,.txt,.md,.csv"
+                accept=".pdf,.docx,.xlsx,.txt,.md,.csv"
                 onChange={(event) => setFiles(Array.from(event.target.files))}
               />
             </label>
@@ -383,6 +384,7 @@ export function Documents({
                 setEdit(null);
             }}
           >
+            {edit.data.referenceOnly && <div className="sample-notice"><p>Private reference original. It is not operating evidence and cannot be approved. Download the original, or create a separate working draft.</p>{!readOnly && <button type="button" className="primary" disabled={busy} onClick={async()=>{const done=await perform(()=>api(base+'/isms/reference-drafts/'+edit.id,'POST',{}),'Working draft prepared. Complete decisions and map it before review.');if(done){setEdit(null);setTab('active');setStatus('all');setSearch('');}}}>Create working draft</button>}</div>}
             <div className="detail-strip">
               <Badge status={edit.data.status} />
               <span>
@@ -393,7 +395,7 @@ export function Documents({
                 <span>Reviewed by {edit.data.reviewedBy}</span>
               )}
             </div>
-            <fieldset disabled={readOnly || tab === "trash" || busy}>
+            <fieldset disabled={readOnly || edit.data.referenceOnly || tab === "trash" || busy}>
               <div className="form-grid">
                 <label>
                   Document title
@@ -443,7 +445,7 @@ export function Documents({
                   name="description"
                   defaultValue={edit.data.description}
                   rows={18}
-                  disabled={readOnly || tab === "trash" || busy}
+                  disabled={readOnly || edit.data.referenceOnly || tab === "trash" || busy}
                 />
                 <small className="helper">
                   Replace every [DECISION REQUIRED] with your approved working
@@ -458,7 +460,7 @@ export function Documents({
                   "No text was extracted. Download the original to inspect this document."}
               </pre>
             </details>
-            {!readOnly && tab !== "trash" && (
+            {!readOnly && !edit.data.referenceOnly && tab !== "trash" && (
               <label>
                 Review note
                 <textarea
@@ -522,7 +524,7 @@ export function Documents({
                   Download saved text
                 </a>
               )}
-              {!readOnly && tab !== "trash" && (
+              {!readOnly && !edit.data.referenceOnly && tab !== "trash" && (
                 <>
                   <button className="secondary" disabled={busy}>
                     Save changes

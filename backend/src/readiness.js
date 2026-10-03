@@ -1,7 +1,7 @@
 /** Readiness is derived from reviewed, current evidence; a manual status is insufficient. */
 export function readiness(records, now = new Date()) {
   const controls = records.filter((record) => record.kind === "controls");
-  const documents = records.filter((record) => record.kind === "documents");
+  const documents = records.filter((record) => record.kind === "documents" && !record.data.referenceOnly);
   const tasks = records.filter((record) => record.kind === "tasks");
   const results = controls.map((control) => {
     const evidence = documents.filter(

@@ -39,6 +39,9 @@ jobs:
       - run: pnpm run --dir backend check
       - run: pnpm run --dir backend test
       - run: pnpm run --dir frontend build
+      - run: pnpm --dir frontend exec playwright install --with-deps chromium
+      - name: Sample-client browser acceptance
+        run: node scripts/browser-check.mjs
       - run: DATABASE_URL=postgres://cunix:ci-password@localhost:5432/cunix_grc pnpm run --dir backend migrate
       - name: PostgreSQL workflow integration tests
         run: pnpm run --dir backend test

@@ -333,10 +333,10 @@ service.get(
         return {
           ...workspace,
           program: await programHealth(workspace.id),
-          documents: records.rows.filter((row) => row.kind === "documents")
+          documents: records.rows.filter((row) => row.kind === "documents" && !row.data.referenceOnly)
             .length,
           pending: records.rows.filter(
-            (row) => row.kind === "documents" && row.data.status !== "approved",
+            (row) => row.kind === "documents" && !row.data.referenceOnly && row.data.status !== "approved",
           ).length,
           approvedStages: progress.rows.filter(
             (row) => row.status === "approved",
@@ -590,6 +590,7 @@ service.patch(
       );
       if (!rows[0]) throw fail(404, "Record not found.");
       const previous = rows[0];
+      if(previous.data.referenceOnly)throw fail(403,"Reference originals are read-only. Create a working draft instead.");
       const data = { ...previous.data, ...req.body };
       if (
         previous.kind === "controls" &&

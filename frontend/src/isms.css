@@ -527,3 +527,6 @@
     padding: 18px;
   }
 }
+
+.sample-notice { border-left: 4px solid #d99915; margin-bottom: 20px; }.sample-notice p { margin-bottom: 0; }
+.scope-area-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 16px; margin: 20px 0; }.scope-area-grid article { border: 1px solid var(--border,#dce3ec); border-radius: 12px; padding: 16px; }.scope-area-grid h3 { margin-top: 0; }

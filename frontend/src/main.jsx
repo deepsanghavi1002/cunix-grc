@@ -423,14 +423,14 @@ function App() {
                   {page === "reviews" &&
                     currentData?.records.filter(
                       (item) =>
-                        item.kind === "documents" &&
+                        item.kind === "documents" && !item.data.referenceOnly &&
                         item.data.status !== "approved",
                     ).length > 0 && (
                       <span className="nav-count">
                         {
                           currentData.records.filter(
                             (item) =>
-                              item.kind === "documents" &&
+                              item.kind === "documents" && !item.data.referenceOnly &&
                               item.data.status !== "approved",
                           ).length
                         }
@@ -504,6 +504,7 @@ function App() {
             </span>
           </div>
           <main className="page-content">
+            {currentData?.isms?.program?.profile?.sample && <div className="panel sample-notice"><strong>Fictional sample workspace</strong><p>Records, decisions and readiness figures demonstrate workflows. They do not describe a real client or establish certification readiness.</p></div>}
             {error && (
               <div className="error-banner" role="alert">
                 <Icon name="alert" size={18} />

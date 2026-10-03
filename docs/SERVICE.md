@@ -8,7 +8,7 @@ Complete Scope with the business services, people, systems, locations and inform
 
 ## Client document workflow
 
-Clients upload PDF, DOCX, TXT, Markdown and CSV evidence up to 5 MB. The server stores the original in PostgreSQL, records a SHA-256 checksum, extracts text and sets the evidence to review required. Image-only PDFs are marked as requiring OCR. No third-party AI receives the uploaded content.
+Clients upload PDF, DOCX, XLSX, TXT, Markdown and CSV evidence up to 5 MB. The server stores the original in PostgreSQL, records a SHA-256 checksum, extracts text and sets the evidence to review required. Image-only PDFs are marked as requiring OCR. No third-party AI receives the uploaded content.
 
 A Cunix administrator or reviewer selects a control, records a review note and approves the document, or returns it for revision. Clients cannot approve documents. Missing evidence is tracked using Tasks. Each mutation generates a workspace activity entry. Export audit package downloads a JSON register with records and activity; original files remain available via an authenticated download endpoint.
 
@@ -24,6 +24,6 @@ CI executes the workspace-isolation and document-approval integration test, fron
 
 ## Current limits
 
-This release is a functional service foundation rather than Sprinto feature parity. Cloud-provider connectors, scheduled automated control tests, OCR, AI analysis, SSO/MFA, email invitations, password recovery, training delivery, complete framework libraries and external certification systems are not implemented. Integration inventory always shows not connected. Readiness monitoring is triggered by a reviewer. Applicability statements cover only the recorded controls; starter controls are not a complete ISO implementation. Audit packages support human review and do not make certification decisions.
+This release is a functional service foundation rather than Sprinto feature parity. Broad cloud-provider collectors, automated configuration tests, OCR, AI analysis, self-service SSO/MFA administration, email invitations, password recovery, training delivery, complete licensed framework libraries and external certification systems are not implemented. Integration inventory stays not connected until a provider is implemented; the scoped GitHub collector is described in MANAGED-ISMS.md. Managed ISMS metadata monitoring runs hourly; reviewers can also run checks on demand. Applicability statements cover only the recorded controls; starter controls are not a complete ISO implementation. Audit packages support human review and do not make certification decisions.
 
 Uploads are stored in PostgreSQL; production scale requires malware scanning, extraction isolation, object storage, backup/retention controls and upload capacity limits. Sign-in uses an in-process attempt limit; a shared rate limiter and account recovery are needed before public client rollout. Validate with a dedicated staging environment before real client data is onboarded.

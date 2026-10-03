@@ -29,7 +29,7 @@ export function ISMS({
   const applicable = coverage.filter((c) => c.applicable).length;
   const attention = signals.filter((s) => s.status === "attention");
   const due = routines.filter((r) => r.data.dueDate <= today());
-  const documents = records.filter((r) => r.kind === "documents");
+  const documents = records.filter((r) => r.kind === "documents" && !r.data.referenceOnly);
   const mutate = (path, method, body, message) =>
     perform(() => api(base + path, method, body), message);
   const destination = (key) => {
@@ -122,6 +122,8 @@ export function ISMS({
       <div className="isms-tabs" role="tablist" aria-label="ISMS workspace">
         {[
           ["home", "Overview"],
+          ["scopes", "Scope areas"],
+          ["references", "Reference pack"],
           ["guides", "Guided setup"],
           ["coverage", "Control coverage"],
           ["routines", "Recurring evidence"],
@@ -143,6 +145,8 @@ export function ISMS({
           </button>
         ))}
       </div>
+      {tab === "scopes" && <section className="panel isms-section"><h2>ISMS scope areas</h2><p>Define the actual boundary for each client. The sample deliberately spans every area below.</p><div className="scope-area-grid">{(program.profile.scopeAreas || []).map(area=><article key={area.key}><h3>{area.title}</h3><p>{area.details}</p><small>Owner: {area.owner}</small></article>)}</div>{!program.profile.scopeAreas?.length && <p>Describe the client boundary in Profile and the Scope register.</p>}</section>}
+      {tab === "references" && <section className="panel isms-section"><h2>ISMS 2022 reference pack</h2><p>Private source templates guide policies and working records. Templates never count as completed evidence.</p><div className="scope-area-grid">{Object.entries(records.filter(r=>r.kind==='documents'&&r.data.referenceOnly).reduce((groups,r)=>{const category=r.data.referenceCategory||'Reference';groups[category]=(groups[category]||0)+1;return groups;},{})).map(([category,count])=><article key={category}><h3>{category}</h3><p>{count} source files</p></article>)}</div><button className="primary" onClick={()=>onPage('documents')}>Open private document library</button></section>}
       {tab === "home" && (
         <>
           <div className="isms-hero">

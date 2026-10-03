@@ -12,14 +12,15 @@
     "start": "node src/index.js",
     "test": "node --test src/*.test.js",
     "migrate": "node src/migrate.js",
-    "check": "node --check src/index.js && node --check src/service.js && node --check src/stages.js && node --check src/workflows.js && node --check src/readiness.js && node --check src/extract.js && node --check src/isms.js && node --check src/isms-catalog.js && node --check src/collector.js && node --check src/oidc.js"
+    "check": "node --check src/index.js && node --check src/service.js && node --check src/stages.js && node --check src/workflows.js && node --check src/readiness.js && node --check src/extract.js && node --check src/isms.js && node --check src/isms-catalog.js && node --check src/collector.js && node --check src/oidc.js && node --check src/sample-client.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "^6.3.289",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "read-excel-file": "^9.3.10"
   },
   "devDependencies": {
     "pg-mem": "^3.0.14",

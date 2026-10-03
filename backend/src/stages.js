@@ -195,6 +195,7 @@ stages.patch(
         if (
           documents.rows.some(
             (item) =>
+              !item.data.referenceOnly &&
               (item.data.stageKey || "evidence") === definition.key &&
               item.data.status !== "approved",
           )

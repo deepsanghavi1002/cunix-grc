@@ -62,6 +62,7 @@ async function active(db, tenant) {
   return rows[0];
 }
 const currentEvidence = (doc, today) =>
+  !doc.data.referenceOnly &&
   doc.data.status === "approved" &&
   Boolean(doc.data.reviewedAt) &&
   Boolean(doc.data.expiresAt) &&
@@ -69,7 +70,7 @@ const currentEvidence = (doc, today) =>
   !/\[DECISION REQUIRED\]/.test(doc.data.description || "");
 
 export function evaluateSignals(records, scheduled, profile, today = day()) {
-  const docs = records.filter((r) => r.kind === "documents");
+  const docs = records.filter((r) => r.kind === "documents" && !r.data.referenceOnly);
   const controls = records.filter(
     (r) => r.kind === "controls" && r.data.applicable !== false,
   );
@@ -321,7 +322,7 @@ isms.get(
           [req.tenant],
         ),
       ]);
-    const documents = records.rows.filter((r) => r.kind === "documents");
+    const documents = records.rows.filter((r) => r.kind === "documents" && !r.data.referenceOnly);
     const coverage = requirements.map((r) => {
       const control = records.rows.find(
         (c) => c.kind === "controls" && reference(c.data.reference) === r.ref,
@@ -423,6 +424,24 @@ isms.post(
   }),
 );
 
+isms.post('/isms/reference-drafts/:id', route(async (req,res)=>{
+  const created=await transaction(async db=>{
+    await active(db,req.tenant);
+    const source=(await db.query("SELECT id,data FROM service_records WHERE tenant_id=$1 AND id=$2 AND kind='documents' AND deleted_at IS NULL",[req.tenant,req.params.id])).rows[0];
+    if(!source?.data.referenceOnly)throw fail(404,'Reference template not found.');
+    const drafts=(await db.query("SELECT id,data FROM service_records WHERE tenant_id=$1 AND kind='documents' AND deleted_at IS NULL",[req.tenant])).rows;
+    const existing=drafts.find(row=>row.data.referenceSourceId===source.id&&row.data.status!=='approved');
+    if(existing)return existing.id;
+    const company=(await db.query('SELECT name FROM tenants WHERE id=$1',[req.tenant])).rows[0].name;
+    const text=(source.data.description||'').replace(/^PRIVATE REFERENCE TEMPLATE[^\n]*\nOriginal path:[^\n]*\n\n/,'').replace(/<<\s*COMPANY NAME\s*>>/gi,company).replace(/“Legal Name of the company”/g,company).replace(/<<[^>]+>>/g,'[DECISION REQUIRED]').replace(/DD-MMM-YY|DD-MM-YYYY|DD-MMM-YYYY/gi,'[DECISION REQUIRED]');
+    const id=randomUUID();
+    const data={title:company+' — '+source.data.title,description:'DRAFT — complete decisions and confirm actual practices before review.\n\n'+text,referenceSourceId:source.id,referencePath:source.data.referencePath,draftSource:'Private ISMS 2022 reference template',stageKey:'controls',status:'review_required',owner:req.user.name,submittedBy:req.user.name,checks:['Complete organization-specific decisions','Confirm applicability and actual practices','Map to the relevant control and obtain review']};
+    await db.query('INSERT INTO service_records(id,tenant_id,kind,data) VALUES($1,$2,$3,$4)',[id,req.tenant,'documents',data]);
+    await invalidateStage(db,req.tenant,'controls',req.user.id);await event(db,req,'isms.reference_draft.created',id);return id;
+  });
+  res.status(201).json({id:created});
+}));
+
 isms.patch(
   "/isms/profile",
   route(async (req, res) => {
@@ -434,12 +453,12 @@ isms.patch(
       "sponsor",
       "industry",
     ])
-      profile[key] = clean(req.body[key] ?? "");
+      if(req.body[key] !== undefined) profile[key] = clean(req.body[key]);
     await transaction(async (db) => {
-      await active(db, req.tenant);
+      const existing = await active(db, req.tenant);
       await db.query(
         "UPDATE service_programs SET profile=$1,next_run_at=now() WHERE tenant_id=$2",
-        [profile, req.tenant],
+        [{...existing.profile,...profile}, req.tenant],
       );
       await event(db, req, "isms.profile.updated");
     });

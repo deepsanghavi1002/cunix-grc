@@ -1,3 +1,5 @@
+The [working-release sample guide](docs/SAMPLE-CLIENT.md) describes Northstar Digital, its broad ISMS scope, private reference library and team walkthrough.
+
 # Cunix GRC
 
 The [managed ISMS guide](docs/MANAGED-ISMS.md) covers the guided client portal, 118-topic coverage index, personalized document drafts, recurring evidence reviews, scheduled monitoring, client site records and GitHub collector. Start at **Client workspaces → Guided ISMS & monitoring**.
