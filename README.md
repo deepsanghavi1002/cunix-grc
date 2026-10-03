@@ -32,3 +32,5 @@ For direct development, start PostgreSQL first, then run `pnpm install` and `pnp
 The deployment workflow publishes `ghcr.io/<owner>/cunix-grc:<commit-sha>` after CI succeeds on `main`. A self-hosted GitHub Actions runner labelled `cunix-grc` pulls that immutable image and invokes `/home/dhs/apps/cunix-grc/deploy-release.sh`. Production binds only to loopback and the CUNIX Tailscale address on port `8082`; publish it externally through the Cloudflare Tunnel route rather than opening the port on the router.
 
 Before enabling production deployment, create the runner, configure the production environment, and set the server's `cunix-grc.env` with `DATABASE_URL` and `APP_ORIGIN`. Set repository variable `ENABLE_DEPLOY=true` only when that infrastructure is ready. Sessions are stored in PostgreSQL. Follow the production foundation roadmap before onboarding real client documents.
+
+GRC sign-in accepts authenticated CUNIX accounts without requiring an `email_verified` claim or a separate email-verification step. The identity provider must still return an email and subject; the corporate-domain restriction and workspace permissions remain enforced.

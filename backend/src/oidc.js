@@ -102,8 +102,8 @@ export function oidcRouter(onLogin) {
       if (!ur.ok) throw new Error("Identity lookup failed");
       const p = await ur.json(),
         email = String(p.email || "").toLowerCase();
-      if (p.email_verified !== true || !p.sub)
-        return res.status(403).send("A verified identity email is required");
+      if (!email || !p.sub)
+        return res.status(403).send("An identity email and subject are required");
       if (email !== admin && !email.endsWith(`@${domain}`))
         return res.status(403).send("CUNIX account required");
       await onLogin(req, res, { ...p, email, isAdmin: email === admin });

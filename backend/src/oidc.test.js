@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import express from "express";
 import request from "supertest";
 
-test("central identity requires matching state and verified email and distinguishes the master account", async (context) => {
+test("central identity requires matching state and a CUNIX identity without email verification and distinguishes the master account", async (context) => {
   process.env.OIDC_CLIENT_SECRET = "synthetic-test-secret";
   process.env.OIDC_ADMIN_EMAIL = "master@example.com";
   process.env.OIDC_ALLOWED_DOMAIN = "staff.example.com";
@@ -54,8 +54,14 @@ test("central identity requires matching state and verified email and distinguis
   profile = { ...profile, email: "master@example.com" };
   assert.equal((await login().expect(200)).body.isAdmin, true);
   profile = { ...profile, email_verified: false };
+  assert.equal((await login().expect(200)).body.isAdmin, true);
+  profile = { sub: "test-subject", email: "analyst@staff.example.com" };
+  assert.equal((await login().expect(200)).body.isAdmin, false);
+  profile = { ...profile, email_verified: false };
+  assert.equal((await login().expect(200)).body.isAdmin, false);
+  profile = { email: "analyst@staff.example.com" };
   await login().expect(403);
-  profile = { sub: "test-subject", email: "master@example.com" };
+  profile = { sub: "test-subject" };
   await login().expect(403);
   profile = { ...profile, email_verified: true, email: "outsider@example.net" };
   await login().expect(403);
