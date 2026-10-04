@@ -85,7 +85,15 @@ try {
     }),
     errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  await page.emulateMedia({colorScheme:'dark'});
   await page.goto(base);
+  assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+  await page.getByRole('button',{name:'Dark mode',exact:true}).click();
+  assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+  await page.reload();
+  assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
+  await page.getByRole('button',{name:'Dark mode',exact:true}).click();
+  await page.screenshot({path:'/tmp/grc-dark-login.png'});
   await page.getByLabel("Email address").fill("browser@sample.invalid");
   await page
     .getByLabel("Password", { exact: true })
@@ -94,6 +102,8 @@ try {
     .getByRole("button", { name: "Open workspace", exact: true })
     .click();
   await page.waitForFunction(() => document.querySelector(".app-shell"));
+  assert.equal(await page.getByRole('button',{name:'Dark mode',exact:true}).getAttribute('aria-pressed'),'true');
+  await page.screenshot({path:'/tmp/grc-dark-workspace.png'});
   await page.goto(base + "/#/workspace/" + sample.id + "/isms");
   await page.getByText("Fictional sample workspace", { exact: true }).waitFor();
   await page.getByRole("tab", { name: "Scope areas", exact: true }).click();
@@ -136,6 +146,8 @@ try {
   await page
     .getByRole("heading", { name: "Client home", exact: true })
     .waitFor();
+  assert.equal(await page.getByRole('link',{name:'Open client portal',exact:true}).getAttribute('href'),'/#/client/northstar-isms-working-release');
+  await page.screenshot({path:'/tmp/grc-dark-client.png'});
   await page
     .getByRole("button", { name: "We already have an ISMS", exact: true })
     .click();

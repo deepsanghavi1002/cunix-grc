@@ -759,7 +759,7 @@ export function ISMS({
             </fieldset>
           </form>
           <div className="isms-portal-link">
-            <strong>Private client portal</strong>
+            <strong>Private client portal</strong><a className="secondary" href={"/#/client/"+encodeURIComponent(workspace.slug)} target="_blank" rel="noopener">Open client portal</a>
             <p>
               Share this address with existing workspace members. Signing in and
               membership are required.
@@ -767,7 +767,7 @@ export function ISMS({
             <input
               aria-label="Private client portal address"
               readOnly
-              value={`${window.location.origin}/#/workspace/${workspace.id}/isms`}
+              value={`${window.location.origin}/#/client/${encodeURIComponent(workspace.slug)}`}
             />
             <button className="secondary" onClick={() => onPage("team")}>
               Manage client access

@@ -17,6 +17,7 @@ import { ISMS, AttentionQueue } from "./ISMS.jsx";
 import { ClientPortal } from "./ClientPortal.jsx";
 import "./styles.css";
 import "./isms.css";
+import "./theme.css";
 
 async function api(path, method = "GET", body, signal) {
   const response = await fetch("/api/service" + path, {
@@ -65,6 +66,18 @@ const navigation = [
   ["activity", "clock", "Activity log"],
 ];
 
+function ThemeToggle() {
+  const [theme,setTheme]=useState(document.documentElement.dataset.theme||'light');
+  useEffect(()=>{
+    const media=window.matchMedia('(prefers-color-scheme: dark)');
+    const update=()=>{let saved;try{saved=localStorage.getItem('cunix-grc-theme');}catch{} if(saved!=='light'&&saved!=='dark'){const next=media.matches?'dark':'light';document.documentElement.dataset.theme=next;setTheme(next);}};
+    const storage=()=>{let saved;try{saved=localStorage.getItem('cunix-grc-theme');}catch{} const next=saved==='light'||saved==='dark'?saved:media.matches?'dark':'light';document.documentElement.dataset.theme=next;setTheme(next);};
+    media.addEventListener('change',update);window.addEventListener('storage',storage);
+    return()=>{media.removeEventListener('change',update);window.removeEventListener('storage',storage);};
+  },[]);
+  return <button className="secondary theme-toggle" aria-label="Dark mode" aria-pressed={theme==='dark'} onClick={()=>{const next=theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;setTheme(next);try{localStorage.setItem('cunix-grc-theme',next);}catch{}}}>{theme==='dark'?'☀ Light mode':'☾ Dark mode'}</button>;
+}
+
 function Login({ onLogin, error, busy }) {
   const [register, setRegister] = useState(false);
   const [centralLogin, setCentralLogin] = useState(false);
@@ -84,7 +97,7 @@ function Login({ onLogin, error, busy }) {
     };
   }, []);
   return (
-    <div className="login-layout">
+    <div className="login-layout"><div className="login-theme"><ThemeToggle /></div>
       <section className="login-story">
         <div className="brand">
           <span className="brand-mark">
@@ -544,10 +557,10 @@ function App() {
                 </>
               )}
             </div>
-            <span className="topbar-status">
+            <div className="topbar-actions"><ThemeToggle /><span className="topbar-status">
               <span />
               Private workspace
-            </span>
+            </span></div>
           </div>
           <main className="page-content">
             {currentData?.isms?.program?.profile?.sample && (

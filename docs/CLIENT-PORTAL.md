@@ -71,3 +71,7 @@ Playwright uses disposable records and a mock provider to exercise client URLs, 
 Production verification uses the real configured provider against the fictional sample only, and verifies live application pages/files with a temporary existing-admin session. That does not constitute a new customer SSO acceptance test. Do not upload real customer material into testing without authorization.
 
 This increment delivers the client/task/guide foundation. Email/Teams/Slack reminders, directory sync, delivered training, broad cloud/endpoint monitoring, formal risk acceptance, complete incident/corrective-action effectiveness workflows, scoped auditor invitations, full customer recovery/invitation flows and the security/restore controls listed in CLIENT-CONTINUOUS-COMPLIANCE.md remain separate implementation work. AI does not substitute for these modules.
+
+## Appearance
+
+Use the Dark mode / Light mode button on the sign-in page or top bar. First visits follow the device preference; an explicit choice is remembered in that browser, including after signing in or reloading. Client and consultant views use the same appearance setting.

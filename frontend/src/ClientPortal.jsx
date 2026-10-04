@@ -110,7 +110,7 @@ export function ClientPortal({
         }
         actions={
           !employee && (
-            <button
+            <><a className="secondary" href={"/#/client/"+encodeURIComponent(workspace.slug)} target="_blank" rel="noopener">Open client portal</a><button
               className="secondary"
               onClick={() =>
                 navigator.clipboard?.writeText(
@@ -119,7 +119,7 @@ export function ClientPortal({
               }
             >
               Copy client portal URL
-            </button>
+            </button></>
           )
         }
       />
