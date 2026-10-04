@@ -1,3 +1,4 @@
+import { modelForMode } from './ai-models.js';
 import { requirements, guides } from "./isms-catalog.js";
 export const phases = [
   {
@@ -110,7 +111,7 @@ export function guideMessages(question, context, history = []) {
     },
   ];
 }
-export async function providerAdvice(messages) {
+export async function providerAdvice(messages,model=modelForMode("default")) {
   const key = process.env.FIREWORKS_API_KEY;
   if (!key)
     throw Object.assign(
@@ -130,13 +131,11 @@ export async function providerAdvice(messages) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model:
-          process.env.FIREWORKS_MODEL ||
-          "accounts/fireworks/models/deepseek-v4p1-flash",
+        model,
         messages,
         response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 2400,
+        max_tokens: model===modelForMode("economy")?8192:2400,
       }),
     });
   } catch {

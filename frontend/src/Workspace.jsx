@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Badge,
   Empty,
@@ -750,6 +750,9 @@ export function RecordsPanel({
 
 export function Team({ workspace, members, role, api, perform, busy }) {
   const [adding, setAdding] = useState(false);
+  const [invitations,setInvitations]=useState([]),[createdInvite,setCreatedInvite]=useState(null);
+  const loadInvites=()=>role==='admin'?api(`/workspaces/${workspace.id}/invitations`).then(setInvitations):Promise.resolve();
+  useEffect(()=>{loadInvites().catch(()=>{});},[workspace.id,role]);
   return (
     <>
       <PageHeading
@@ -760,7 +763,7 @@ export function Team({ workspace, members, role, api, perform, busy }) {
           role === "admin" && (
             <button className="primary" onClick={() => setAdding(true)}>
               <Icon name="plus" size={17} />
-              Add member
+              Invite member
             </button>
           )
         }
@@ -784,10 +787,13 @@ export function Team({ workspace, members, role, api, perform, busy }) {
                 <p>{member.email}</p>
               </div>
               <Badge status={member.role} />
+              {role==='admin'&&member.role!=='admin'&&<button className="secondary" disabled={busy} onClick={()=>{if(window.confirm(`Remove ${member.name} from this workspace?`))perform(()=>api(`/workspaces/${workspace.id}/members/${member.id}`,'DELETE'),'Workspace access removed.');}}>Remove access</button>}
             </article>
           ))}
         </div>
       </section>
+      {createdInvite&&<section className="panel" style={{padding:24}}><h2>Share this invitation privately</h2><p>Send it only to the named recipient. This link is shown now; it is not stored in readable form.</p><input aria-label="Private invitation URL" value={createdInvite.url} readOnly/><button className="secondary" onClick={()=>navigator.clipboard?.writeText(createdInvite.url)}>Copy invitation</button><button className="secondary" onClick={()=>setCreatedInvite(null)}>Hide link</button></section>}
+      {role==='admin'&&<section className="panel" style={{padding:24}}><h2>Invitations</h2>{invitations.length?invitations.map(invite=><div key={invite.id} className="member"><span>{invite.name} · {invite.email} · {invite.role}</span><span>{invite.accepted_at?'Accepted':invite.revoked_at?'Cancelled':new Date(invite.expires_at)<new Date()?'Expired':'Pending'}</span>{!invite.accepted_at&&!invite.revoked_at&&new Date(invite.expires_at)>new Date()&&<button className="secondary" onClick={async()=>{const done=await perform(()=>api(`/workspaces/${workspace.id}/invitations/${invite.id}/revoke`,'POST',{}),'Invitation cancelled.');if(done)await loadInvites();}}>Cancel invitation</button>}</div>):<p>No invitations yet.</p>}</section>}
       <div className="role-cards">
         {[
           ["admin", "Manage the workspace and client access."],
@@ -804,7 +810,7 @@ export function Team({ workspace, members, role, api, perform, busy }) {
       </div>
       {adding && (
         <Modal
-          title="Add workspace member"
+          title="Invite workspace member"
           onClose={() => !busy && setAdding(false)}
         >
           <form
@@ -815,9 +821,8 @@ export function Team({ workspace, members, role, api, perform, busy }) {
               );
               if (
                 await perform(
-                  () =>
-                    api(`/workspaces/${workspace.id}/members`, "POST", values),
-                  "Member account created.",
+                  async()=>{const result=await api(`/workspaces/${workspace.id}/invitations`, "POST", values);setCreatedInvite(result);await loadInvites();},
+                  "Private invitation created.",
                 )
               )
                 setAdding(false);
@@ -833,27 +838,14 @@ export function Team({ workspace, members, role, api, perform, busy }) {
             </label>
             <label>
               Role
-              <select name="role">
+              <select name="role" aria-label="Role">
                 <option value="client">Client</option>
                 <option value="reviewer">Reviewer</option>
                 <option value="employee">Employee</option>
                 <option value="auditor">Auditor · read only</option>
               </select>
             </label>
-            <label>
-              Initial password
-              <input
-                type="password"
-                name="password"
-                minLength={12}
-                required
-                autoComplete="new-password"
-              />
-            </label>
-            <p className="helper">
-              Use at least 12 characters. Share initial credentials through your
-              secure channel; email invitations are not configured.
-            </p>
+            <p className="helper">The recipient chooses their own password. Invitations expire in 72 hours and can be used once. Share the link privately with the named person.</p>
             <div className="form-actions">
               <button
                 type="button"
@@ -863,7 +855,7 @@ export function Team({ workspace, members, role, api, perform, busy }) {
                 Cancel
               </button>
               <button className="primary" disabled={busy}>
-                Create member account
+                Create private invitation
               </button>
             </div>
           </form>

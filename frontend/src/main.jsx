@@ -1,3 +1,4 @@
+import { Invitation } from './Invitation.jsx';
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -44,6 +45,7 @@ function useRoute() {
   const parts = hash.replace(/^#\/?/, "").split("/");
   return {
     workspaceId: parts[0] === "workspace" ? parts[1] : "",
+    inviteToken: parts[0] === 'invite' ? parts[1] : '',
     clientSlug: parts[0] === "client" ? parts[1] : "",
     page:
       parts[0] === "client"
@@ -1055,4 +1057,8 @@ function App() {
     </FeedbackContext.Provider>
   );
 }
-createRoot(document.getElementById("root")).render(<App />);
+function Entry(){
+  const route=useRoute();
+  return route.inviteToken?<Invitation token={route.inviteToken} api={api}/>:<App/>;
+}
+createRoot(document.getElementById("root")).render(<Entry />);

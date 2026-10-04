@@ -1,3 +1,4 @@
+import { invitationPublic, invitationAdmin } from './invitations.js';
 import { Router } from "express";
 import { portal } from "./portal.js";
 import {
@@ -61,7 +62,7 @@ const baseline = [
 const attempts = new Map();
 service.use(collectorIngest);
 service.use((req, res, next) => {
-  if (!["/login", "/register"].includes(req.path)) return next();
+  if (!["/login", "/register", "/invitation/inspect", "/invitation/accept"].includes(req.path)) return next();
   const now = Date.now();
   for (const [key, value] of attempts)
     if (value.until < now) attempts.delete(key);
@@ -90,6 +91,7 @@ async function event(db, tenant, actor, action, id) {
   );
 }
 
+service.use(invitationPublic({pool,passwordHash,passwordMatches}));
 service.post(
   "/register",
   route(async (req, res) => {
@@ -377,6 +379,10 @@ service.use("/workspaces/:tenantId", (req, res, next) => {
     next();
   })().catch(next);
 });
+service.use("/workspaces/:tenantId", (req,res,next)=>{
+  if(/^\/(invitations|members\/)/.test(req.path))return invitationAdmin({pool})(req,res,next);
+  next();
+});
 service.get(
   "/workspaces/:tenantId/records",
   route(async (req, res) => {
@@ -482,6 +488,7 @@ service.post(
   "/workspaces/:tenantId/members",
   route(async (req, res) => {
     if (req.role !== "admin") throw fail(403, "Administrator access required.");
+    if(process.env.NODE_ENV==="production")throw fail(403,"Use a private workspace invitation. Members choose their own passwords.");
     const { email, password, name, role } = req.body;
     if (
       !["reviewer", "client", "employee", "auditor"].includes(role) ||

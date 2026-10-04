@@ -43,8 +43,9 @@ const sample = await createSampleClient(pool, {
 });
 const app = express();
 app.use(express.json({ limit: "8mb" }));
-app.post("/mock-provider", (_req, res) =>
-  res.json({
+let lastGuideModel=null;
+app.post("/mock-provider", (req, res) => {
+  lastGuideModel=req.body.model;return res.json({
     choices: [
       {
         finish_reason: "stop",
@@ -66,8 +67,8 @@ app.post("/mock-provider", (_req, res) =>
         },
       },
     ],
-  }),
-);
+  });
+});
 app.use("/api/service", service);
 app.use(express.static(new URL("../frontend/dist/", import.meta.url).pathname));
 app.use((e, _req, res, _next) =>
@@ -158,19 +159,26 @@ try {
   await page
     .getByRole("button", { name: "Disable guide", exact: true })
     .waitFor();
-  const member = await page.request.post(
-    base + "/api/service/workspaces/" + sample.id + "/members",
-    {
-      data: {
-        name: "Browser employee",
-        email: "employee-browser@sample.invalid",
-        password: "SampleBrowserPassword123!",
-        role: "employee",
-      },
-    },
-  );
-  assert.equal(member.status(), 201);
-  const employeeId = (await member.json()).id;
+  await page.getByLabel('AI model',{exact:true}).selectOption('economy');
+  await page.getByText('AI model updated for this workspace.',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('AI model',{exact:true}).inputValue(),'economy');
+  await page.goto(base+'/#/workspace/'+sample.id+'/team');
+  await page.getByRole('button',{name:'Invite member',exact:true}).click();
+  await page.getByLabel('Full name',{exact:true}).fill('Browser employee');
+  await page.getByLabel('Email address',{exact:true}).fill('employee-browser@sample.invalid');
+  await page.getByLabel('Role',{exact:true}).selectOption('employee');
+  await page.getByRole('button',{name:'Create private invitation',exact:true}).click();
+  await page.getByLabel('Private invitation URL').waitFor();
+  const inviteUrl=await page.getByLabel('Private invitation URL').inputValue();
+  const recipient=await browser.newContext();const invitationPage=await recipient.newPage();
+  await invitationPage.goto(inviteUrl);
+  await invitationPage.getByLabel('Choose your own password').fill('SampleBrowserPassword123!');
+  await invitationPage.getByRole('button',{name:'Accept invitation',exact:true}).click();
+  await invitationPage.getByRole('button',{name:'Open workspace',exact:true}).waitFor();
+  assert.ok(invitationPage.url().includes('/client/northstar-isms-working-release'));
+  await recipient.close();
+  const employeeId=(await pool.query('SELECT id FROM service_users WHERE email=$1',['employee-browser@sample.invalid'])).rows[0].id;
+  await page.goto(base+'/#/client/northstar-isms-working-release');
   await page.reload();
   await page
     .getByLabel("Ask the ISMS guide")
@@ -182,6 +190,7 @@ try {
       { exact: true },
     )
     .waitFor();
+  assert.equal(lastGuideModel,"accounts/fireworks/models/glm-5p3-flash");
   await page.getByLabel("Suggested task owner").selectOption(employeeId);
   await page
     .getByRole("button", { name: "Add selected tasks", exact: true })

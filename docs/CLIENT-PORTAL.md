@@ -75,3 +75,23 @@ This increment delivers the client/task/guide foundation. Email/Teams/Slack remi
 ## Appearance
 
 Use the Dark mode / Light mode button on the sign-in page or top bar. First visits follow the device preference; an explicit choice is remembered in that browser, including after signing in or reloading. Client and consultant views use the same appearance setting.
+
+## Private invitations and account access
+
+Client portal addresses are entry points, not access credentials. Every workspace API checks the current membership; signed-out visitors see sign-in, and other clients cannot open the workspace or its files. Keep individual accounts; do not share passwords.
+
+In **People & access → Invite member**, a workspace administrator specifies name, email and role (client, employee, reviewer or read-only auditor). **Create private invitation** returns a confidential link once. Share it individually through an established private channel. Email delivery is not configured; the application does not send invitations automatically or claim to have verified the recipient mailbox. Possession of the unused invitation is the onboarding secret for a new account; a forwarded activation link can be misused, so cancel it if exposed.
+
+Invitations expire after 72 hours, are stored only as token hashes, and are consumed once. New recipients choose a password of at least 12 characters and then sign in. Existing accounts must authenticate with their current password or an existing signed-in session matching the invited email; accepting an invitation never resets an existing account password or replaces its existing workspace role. CUNIX staff can sign in centrally first and reopen their invitation. External clients use individual GRC passwords; their own corporate SSO federation and MFA are not delivered by this change. Email verification remains optional as previously requested.
+
+Administrators can cancel pending invitations, generate a replacement, or remove a non-administrator's workspace access. Removal takes effect on subsequent API calls even if their session remains active for another workspace. Self-removal and administrator removal require a maintainer. Existing users are preserved; production's direct create-account-with-an-initial-password endpoint is disabled in favor of invitations. Public self-registration remains disabled in production unless the operator explicitly enables it.
+
+## AI coverage and model choice
+
+The current AI guide is on Client home. It explains the journey, plans tasks, and proposes instruction/date improvements for human review. It uses the selected workspace's limited metadata. It does not read original documents, review their extracted contents, automatically classify them, approve them, or establish compliance. Document extraction, stage/category organization, reference-to-working-draft generation, evidence checks and monitoring are presently deterministic or manual.
+
+A workspace administrator can choose **AI model** on Client home: the server's current model (currently DeepSeek V4.1 Flash), or lower token rates with GLM 5.3 Flash. The choice is workspace-specific and audited. Reviewers can enable/disable the guide but cannot change the model; client/employee/auditor roles cannot change either setting. The backend sends an explicit model ID to Fireworks. It does not delegate model selection to Fireworks and does not silently fall back to a more expensive model. The API key stays on the server.
+
+Verified official serverless pricing on 2026-10-03: DeepSeek V4.1 Flash Standard is $0.30 input / $0.006 cached input / $1.20 output per million tokens; GLM 5.3 Flash Standard is $0.15 / $0.03 / $0.50. Sources: https://docs.fireworks.ai/serverless/pricing and https://fireworks.ai/models/fireworks/glm-5p3-flash . Prices and availability may change. Economy has lower uncached input/output rates, but DeepSeek's listed cached-input rate is lower. Reasoning tokens count toward output: compare actual token use and quality rather than treating the label as a guaranteed saving. A synthetic, non-client-data GLM request succeeded against the existing account. This is availability/JSON verification, not a compliance-quality evaluation. Existing client model settings remain unchanged.
+
+For future document organization, the useful next AI feature is a reviewed classification proposal (document type, suggested category, controls, duplicates and missing ownership), using only explicitly selected documents, preserving originals and approvals, and requiring a person to apply suggestions. Use an economical model for classification and a separately evaluated stronger model for complex analysis. Document contents should not be sent to a provider silently.

@@ -1,3 +1,4 @@
+import { AI_MODES, modelForMode } from './ai-models.js';
 import { Router } from "express";
 import { randomUUID, createHash } from "node:crypto";
 import { pool } from "./db.js";
@@ -186,6 +187,7 @@ export async function portalSnapshot(req) {
     ai: {
       configured: Boolean(process.env.FIREWORKS_API_KEY),
       enabled: profile.aiGuideEnabled === true,
+      mode:profile.aiGuideMode||"default",model:modelForMode(profile.aiGuideMode),modes:AI_MODES,
     },
     sample: profile.sample === true,
   };
@@ -280,7 +282,9 @@ portal.patch(
   route(async (req, res) => {
     if (!reviewer(req))
       throw fail(403, "CUNIX administrator or reviewer access required.");
-    if (typeof req.body.enabled !== "boolean")
+    if(req.body.mode!==undefined&&!AI_MODES.some(m=>m.id===req.body.mode))throw fail(400,"Choose a supported AI model mode.");
+    if(req.body.mode!==undefined&&req.role!=="admin")throw fail(403,"Workspace administrator access required to change the model.");
+    if (req.body.mode===undefined&&typeof req.body.enabled !== "boolean")
       throw fail(400, "Choose enabled or disabled.");
     const db = await pool.connect();
     try {
@@ -294,12 +298,12 @@ portal.patch(
       if (!p) throw fail(400, "Activate ISMS first.");
       await db.query(
         "UPDATE service_programs SET profile=$1 WHERE tenant_id=$2",
-        [{ ...p.profile, aiGuideEnabled: req.body.enabled }, req.tenant],
+        [{ ...p.profile, aiGuideEnabled: typeof req.body.enabled==="boolean"?req.body.enabled:p.profile.aiGuideEnabled, aiGuideMode:req.body.mode||p.profile.aiGuideMode||"default" }, req.tenant],
       );
       await event(
         db,
         req,
-        req.body.enabled ? "guide.enabled" : "guide.disabled",
+        req.body.mode?"guide.model_changed":req.body.enabled ? "guide.enabled" : "guide.disabled",
       );
       await db.query("COMMIT");
       res.json({ ok: true });
@@ -799,7 +803,7 @@ portal.post(
     let advice;
     try {
       advice = normalizeAdvice(
-        await providerAdvice(guideMessages(question, context, history)),
+        await providerAdvice(guideMessages(question, context, history),snapshot.ai.model),
         context,
       );
     } catch (e) {
@@ -825,9 +829,7 @@ portal.post(
         question,
         ...advice,
         provider: "Fireworks AI",
-        model:
-          process.env.FIREWORKS_MODEL ||
-          "accounts/fireworks/models/deepseek-v4p1-flash",
+        model:snapshot.ai.model,
         createdTaskIds: [],
         taskSnapshots: Object.fromEntries(
           snapshot.tasks.map((t) => [

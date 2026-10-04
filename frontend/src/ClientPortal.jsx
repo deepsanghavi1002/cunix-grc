@@ -253,9 +253,11 @@ export function ClientPortal({
             </button>
           )}
         </div>
+        {role==='admin'&&<label>AI model<select aria-label="AI model" value={portal.ai.mode||'default'} disabled={busy} onChange={e=>perform(()=>api(base+'/portal/ai-settings','PATCH',{mode:e.target.value}),'AI model updated for this workspace.')}>{(portal.ai.modes||[]).map(mode=><option key={mode.id} value={mode.id}>{mode.label}</option>)}</select></label>}
+        <p className="muted">Model: {portal.ai.model||'Configured server model'}. Lower token rates do not guarantee lower cost or equal quality. No automatic fallback to a more expensive model.</p>
         <p className="portal-privacy">
           Sends your question and this workspace’s scope, task, policy-title and
-          status metadata to Fireworks/DeepSeek. Original files and document
+          status metadata to Fireworks using the selected model. Original files and document
           contents are not sent. Replies are guidance; human review is required.
         </p>
         {!portal.ai.configured ? (

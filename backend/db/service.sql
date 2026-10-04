@@ -91,3 +91,19 @@ CREATE TABLE IF NOT EXISTS service_task_comments (
  id UUID PRIMARY KEY, tenant_id UUID NOT NULL REFERENCES tenants(id), task_id UUID NOT NULL REFERENCES service_records(id),
  actor_id UUID NOT NULL REFERENCES service_users(id), body TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS service_invitations (
+ id UUID PRIMARY KEY,
+ tenant_id UUID NOT NULL REFERENCES tenants(id),
+ email TEXT NOT NULL,
+ name TEXT NOT NULL,
+ role TEXT NOT NULL CHECK(role IN ('reviewer','client','employee','auditor')),
+ token_hash TEXT NOT NULL UNIQUE,
+ created_by UUID NOT NULL REFERENCES service_users(id),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+ expires_at TIMESTAMPTZ NOT NULL,
+ accepted_at TIMESTAMPTZ,
+ accepted_by UUID REFERENCES service_users(id),
+ revoked_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS service_invitations_tenant ON service_invitations(tenant_id);
